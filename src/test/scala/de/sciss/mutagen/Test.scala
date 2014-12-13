@@ -16,11 +16,12 @@ object Test extends App {
   // cfg.seed        = 0L
   cfg.population  = 1
   val done        = Promise[Unit]()
-  val proc        = Mutagen.run(cfg) {
+  val proc: Mutagen = Mutagen.run(cfg) {
     case Processor.Result(_, Success(xs)) =>
       xs.foreach(println)
-      xs.headOption.foreach { graph =>
+      xs.headOption.foreach { x =>
         import Ops._
+        val graph = x.graph
         Server.run { s =>
           import ugen._
           val df = SynthDef("test", graph.expand(DefaultUGenGraphBuilderFactory))

@@ -14,9 +14,9 @@
 package de.sciss.mutagen
 
 import de.sciss.file._
-import de.sciss.processor.{GenericProcessor, ProcessorFactory}
+import de.sciss.processor.{Processor, GenericProcessor, ProcessorFactory}
 import de.sciss.synth.SynthGraph
-import impl.{MutagenImpl => Impl}
+import de.sciss.mutagen.impl.{MutagenImpl => Impl}
 
 import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.language.implicitConversions
@@ -49,6 +49,9 @@ object Mutagen extends ProcessorFactory {
 
   protected def prepare(config: Config): Prepared = new Impl(config)
 
-  type Repr     = GenericProcessor[Product]
-  type Product  = Vec[SynthGraph]
+  type Repr     = Mutagen
+  type Product  = Vec[Chromosome]
+}
+trait Mutagen extends Processor[Mutagen.Product, Mutagen] {
+  // implicit def random: util.Random
 }

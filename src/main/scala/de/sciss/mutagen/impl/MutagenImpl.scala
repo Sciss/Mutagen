@@ -15,23 +15,23 @@ package de.sciss.mutagen
 package impl
 
 import de.sciss.file._
-import de.sciss.processor.GenericProcessor
 import de.sciss.processor.impl.ProcessorImpl
 import de.sciss.strugatzki.FeatureExtraction
 import de.sciss.synth._
 import de.sciss.synth.io.AudioFile
 import de.sciss.synth.ugen.SampleRate
 import de.sciss.topology.Topology
+import Util._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
 
 final class MutagenImpl(config: Mutagen.Config)
-  extends ProcessorImpl[Mutagen.Product, Mutagen.Repr] with GenericProcessor[Mutagen.Product] {
+  extends Mutagen with ProcessorImpl[Mutagen.Product, Mutagen.Repr] {
 
-  private val rnd = new util.Random(config.seed)
+  implicit val random = new util.Random(config.seed)
 
-  protected def body(): Vec[SynthGraph] = {
+  protected def body(): Vec[Chromosome] = {
     // outline of algorithm:
     // 1. analyze input using Strugatzki
     // 2. generate initial random population
@@ -59,61 +59,11 @@ final class MutagenImpl(config: Mutagen.Config)
     // generate initial random population
     val pop0  = Vector.fill(config.population)(mkIndividual())
 
-    pop0.map(mkSynthGraph)
+    pop0
   }
 
-  private val NoNoAttr: Set[UGenSpec.Attribute] = {
-    import UGenSpec.Attribute._
-    Set(HasSideEffect, ReadsBuffer, ReadsBus, ReadsFFT, WritesBuffer, WritesBus, WritesFFT)
-  }
-
-  private val RemoveUGens = Set[String](
-    "MouseX", "MouseY", "MouseButton", "KeyState",
-    "BufChannels", "BufDur", "BufFrames", "BufRateScale", "BufSampleRate", "BufSamples",
-    "SendTrig", "SendReply", "CheckBadValues",
-    "Demand", "DemandEnvGen", "Duty",
-    "SubsampleOffset", // "Klang", "Klank", "EnvGen", "IEnvGen"
-    "LocalIn" /* for now! */,
-    "NumAudioBuses", "NumBuffers", "NumControlBuses", "NumInputBuses", "NumOutputBuses", "NumRunningSynths",
-    "Free", "FreeSelf", "FreeSelfWhenDone", "PauseSelf", "PauseSelfWhenDone",
-    "ClearBuf", "LocalBuf",
-    "RandID", "RandSeed"
-  )
-
-  private val ugens: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
-    spec.attr.intersect(NoNoAttr).isEmpty && !RemoveUGens.contains(spec.name) && spec.outputs.nonEmpty &&
-      !spec.rates.set.contains(demand)
-  } .toIndexedSeq
-
-  private val constProb       = 0.5
-  private val minNumVertices  = 4
-  private val maxNumVertices  = 50 // 100
-  private val nonDefaultProb  = 0.5
-
-  // ---- random functions ----
-  // cf. https://github.com/Sciss/Dissemination/blob/master/src/main/scala/de/sciss/semi/Util.scala
-
-  private def rrand  (lo: Int   , hi: Int   ): Int    = lo + rnd.nextInt(hi - lo + 1)
-  private def exprand(lo: Double, hi: Double): Double = lo * math.exp(math.log(hi / lo) * rnd.nextDouble())
-
-  private def coin(p: Double = 0.5): Boolean = rnd.nextDouble() < p
-
-  private def choose[A](xs: Vec[A]): A = xs(rnd.nextInt(xs.size))
-
-  // ----
-
-  private type Top = Topology[Vertex, Edge]
-
-  def mkConstant(): Vertex.Constant = {
-    val f0  = exprand(0.001, 10000.001) - 0.001
-    val f   = if (coin(0.25)) -f0 else f0
-    val v   = Vertex.Constant(f.toFloat)
-    v
-  }
-
-  def mkSynthGraph(c: Chromosome): SynthGraph = {
-    val top = c.top
-
+  private def mkSynthGraph(top: Top): SynthGraph = {
+    import Util._
     @tailrec def loop(rem: Vec[Vertex], real: Map[Vertex, GE]): Map[Vertex, GE] = rem match {
       case init :+ last =>
         val value: GE = last match {
@@ -183,7 +133,7 @@ final class MutagenImpl(config: Mutagen.Config)
         top.edges.forall(_.targetVertex != ugen)
       }
       if (ugens.nonEmpty) {
-        import ugen._
+        import de.sciss.synth.ugen._
         val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
         val isOk  = CheckBadValues.ar(sig0) sig_== 0
         val sig1  = Gate.ar(sig0, isOk)
@@ -191,6 +141,43 @@ final class MutagenImpl(config: Mutagen.Config)
         Out.ar(0, sig)
       }
     }
+  }
+
+  private val NoNoAttr: Set[UGenSpec.Attribute] = {
+    import UGenSpec.Attribute._
+    Set(HasSideEffect, ReadsBuffer, ReadsBus, ReadsFFT, WritesBuffer, WritesBus, WritesFFT)
+  }
+
+  private val RemoveUGens = Set[String](
+    "MouseX", "MouseY", "MouseButton", "KeyState",
+    "BufChannels", "BufDur", "BufFrames", "BufRateScale", "BufSampleRate", "BufSamples",
+    "SendTrig", "SendReply", "CheckBadValues",
+    "Demand", "DemandEnvGen", "Duty",
+    "SubsampleOffset", // "Klang", "Klank", "EnvGen", "IEnvGen"
+    "LocalIn" /* for now! */,
+    "NumAudioBuses", "NumBuffers", "NumControlBuses", "NumInputBuses", "NumOutputBuses", "NumRunningSynths",
+    "Free", "FreeSelf", "FreeSelfWhenDone", "PauseSelf", "PauseSelfWhenDone",
+    "ClearBuf", "LocalBuf",
+    "RandID", "RandSeed"
+  )
+
+  private val ugens: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
+    spec.attr.intersect(NoNoAttr).isEmpty && !RemoveUGens.contains(spec.name) && spec.outputs.nonEmpty &&
+      !spec.rates.set.contains(demand)
+  } .toIndexedSeq
+
+  private val constProb       = 0.5
+  private val minNumVertices  = 4
+  private val maxNumVertices  = 50 // 100
+  private val nonDefaultProb  = 0.5
+
+  private type Top = Topology[Vertex, Edge]
+
+  def mkConstant(): Vertex.Constant = {
+    val f0  = exprand(0.001, 10000.001) - 0.001
+    val f   = if (coin(0.25)) -f0 else f0
+    val v   = Vertex.Constant(f.toFloat)
+    v
   }
 
   def mkIndividual(): Chromosome = {
@@ -243,6 +230,6 @@ final class MutagenImpl(config: Mutagen.Config)
       }
 
     val t0 = loopGraph(Topology.empty)
-    new Chromosome(t0)
+    new Chromosome(t0, mkSynthGraph(t0))
   }
 }
