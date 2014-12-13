@@ -68,10 +68,16 @@ final class MutagenImpl(config: Mutagen.Config)
   }
 
   private val RemoveUGens = Set[String](
-    "CheckBadValues", "NumRunningSynths", "Demand", "NumOutputBuses", "MouseX", "MouseY", "MouseButton", "KeyState",
-    "BufChannels", "BufDur", "BufFrames", "BufRateScale", "BufSampleRate", "BufSamples", "SendTrig", "SendReply",
-    "SubsampleOffset", "Klang" /* for now! */, "Klank" /* for now! */, "EnvGen" /* for now! */,
-    "LocalIn" /* for now! */
+    "MouseX", "MouseY", "MouseButton", "KeyState",
+    "BufChannels", "BufDur", "BufFrames", "BufRateScale", "BufSampleRate", "BufSamples",
+    "SendTrig", "SendReply", "CheckBadValues",
+    "Demand", "DemandEnvGen", "Duty",
+    "SubsampleOffset", // "Klang", "Klank", "EnvGen", "IEnvGen"
+    "LocalIn" /* for now! */,
+    "NumAudioBuses", "NumBuffers", "NumControlBuses", "NumInputBuses", "NumOutputBuses", "NumRunningSynths",
+    "Free", "FreeSelf", "FreeSelfWhenDone", "PauseSelf", "PauseSelfWhenDone",
+    "ClearBuf", "LocalBuf",
+    "RandID", "RandSeed"
   )
 
   private val ugens: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
