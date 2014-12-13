@@ -27,12 +27,13 @@ object Mutagen extends ProcessorFactory {
     def population: Int
     def iterations: Int
     def elitism: Int
+    def seed: Long
   }
   object Config {
     def apply(): ConfigBuilder = new ConfigBuilder
     implicit def build(b: ConfigBuilder): Config = b.build
   }
-  case class Config private[Mutagen] (in: File, population: Int, iterations: Int, elitism: Int)
+  case class Config private[Mutagen] (in: File, population: Int, iterations: Int, elitism: Int, seed: Long)
     extends ConfigLike
 
   final class ConfigBuilder private[Mutagen] () extends ConfigLike {
@@ -40,8 +41,10 @@ object Mutagen extends ProcessorFactory {
     var population  = 50
     var iterations  = 10
     var elitism     = 2
+    var seed        = System.currentTimeMillis()
 
-    def build: Config = Config(in = in, population = population, iterations = iterations, elitism = elitism)
+    def build: Config = Config(in = in, population = population, iterations = iterations, elitism = elitism,
+      seed = seed)
   }
 
   protected def prepare(config: Config): Prepared = new Impl(config)
