@@ -68,8 +68,8 @@ final class MutagenImpl(config: Mutagen.Config)
       case init :+ last =>
         val value: GE = last match {
           case Vertex.Constant(f) => ugen.Constant(f)
-          case Vertex.UGen(spec) =>
-            val (consValues, consTypes) = spec.args.map { arg =>
+          case u @ Vertex.UGen(spec) =>
+            val ins = spec.args.map { arg =>
               val res: (AnyRef, Class[_]) = arg.tpe match {
                 case UGenSpec.ArgumentType.Int =>
                   val v = arg.defaults.get(UndefinedRate) match {
@@ -84,9 +84,9 @@ final class MutagenImpl(config: Mutagen.Config)
                   } .headOption
                   val inGE = inGEOpt.getOrElse {
                     val x = arg.defaults.get(UndefinedRate)
-                    if (x.isEmpty) {
-                      println("HERE")
-                    }
+                    // if (x.isEmpty) {
+                    //   println("HERE")
+                    // }
                     x.get /* arg.defaults(UndefinedRate) */ match {
                       case UGenSpec.ArgumentValue.Boolean(v)    => ugen.Constant(if (v) 1 else 0)
                       case UGenSpec.ArgumentValue.DoneAction(v) => ugen.Constant(v.id)
@@ -100,23 +100,9 @@ final class MutagenImpl(config: Mutagen.Config)
                   (inGE, classOf[GE])
               }
               res
-            } .unzip
-
-            val consName = spec.rates.method match {
-              case UGenSpec.RateMethod.Alias (name) => name
-              case UGenSpec.RateMethod.Custom(name) => name
-              case UGenSpec.RateMethod.Default =>
-                val rate = spec.rates.set.max
-                rate.methodName
             }
 
-            // yes I know, we could use Scala reflection
-            val companionName   = s"de.sciss.synth.ugen.${spec.name}$$"
-            val companionClass  = Class.forName(companionName)
-            val companionMod    = companionClass.getField("MODULE$").get(null)
-            val cons            = companionClass.getMethod(consName, consTypes: _*)
-            val ge              = cons.invoke(companionMod, consValues: _*).asInstanceOf[GE]
-            ge
+            u.instantiate(ins)
         }
 
         loop(init, real + (last -> value))

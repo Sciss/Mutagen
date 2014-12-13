@@ -13,21 +13,48 @@
 
 package de.sciss.mutagen
 
-import de.sciss.synth.ugen.SampleRate
-import de.sciss.synth.{GE, SynthGraph, UGenSpec, UndefinedRate, ugen}
+import de.sciss.synth.{GE, SynthGraph, UGenSpec}
 import de.sciss.topology.Topology
 
-import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
 
 object Vertex {
   object UGen {
-    def apply(info: UGenSpec) = new UGen(info)
+    def apply(info: UGenSpec): UGen = new Impl(info)
     def unapply(v: UGen): Option[UGenSpec] = Some(v.info)
+
+    private final class Impl(val info: UGenSpec) extends UGen {
+      def instantiate(ins: Vec[(AnyRef, Class[_])]): GE = {
+        val consName = info.rates.method match {
+          case UGenSpec.RateMethod.Alias (name) => name
+          case UGenSpec.RateMethod.Custom(name) => name
+          case UGenSpec.RateMethod.Default =>
+            val rate = info.rates.set.max
+            rate.methodName
+        }
+
+        val (consValues, consTypes) = ins.unzip
+
+        // yes I know, we could use Scala reflection
+        val companionName   = s"de.sciss.synth.ugen.${info.name}$$"
+        val companionClass  = Class.forName(companionName)
+        val companionMod    = companionClass.getField("MODULE$").get(null)
+        val cons            = companionClass.getMethod(consName, consTypes: _*)
+        val ge              = cons.invoke(companionMod, consValues: _*).asInstanceOf[GE]
+        ge
+      }
+    }
   }
-  class UGen(val info: UGenSpec) extends Vertex {
+  trait UGen extends Vertex {
+    def info: UGenSpec
+
     override def toString = s"${info.name}@${hashCode().toHexString}"
+
+    def instantiate(ins: Vec[(AnyRef, Class[_])]): GE
   }
+  //  class UGen(val info: UGenSpec) extends Vertex {
+  //    override def toString = s"${info.name}@${hashCode().toHexString}"
+  //  }
   object Constant {
     def apply(f: Float) = new Constant(f)
     def unapply(v: Constant): Option[Float] = Some(v.f)
@@ -43,4 +70,10 @@ sealed trait Vertex
   */
 case class Edge(sourceVertex: Vertex, targetVertex: Vertex, inlet: String) extends Topology.Edge[Vertex]
 
-class Chromosome(val top: Topology[Vertex, Edge], val graph: SynthGraph)
+class Chromosome(val top: Topology[Vertex, Edge], val graph: SynthGraph) {
+  def toSource: String = {
+    // top.vertices
+
+    ???
+  }
+}
