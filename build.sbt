@@ -16,14 +16,17 @@ licenses           := Seq("GPL v2+" -> url("http://www.gnu.org/licenses/gpl-2.0.
 
 lazy val scalaColliderVersion = "1.15.0"
 
+lazy val ugensVersion         = "1.12.0"
+
 lazy val strugatzkiVersion    = "2.7.0"
 
 lazy val topologyVersion      = "1.0.0-SNAPSHOT"
 
 libraryDependencies ++= Seq(
-  "de.sciss" %% "scalacollider" % scalaColliderVersion,
-  "de.sciss" %% "strugatzki"    % strugatzkiVersion,
-  "de.sciss" %% "topology"      % topologyVersion
+  "de.sciss" %% "scalacollider"           % scalaColliderVersion,
+  "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
+  "de.sciss" %% "strugatzki"              % strugatzkiVersion,
+  "de.sciss" %% "topology"                % topologyVersion
 )
 
 scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")
