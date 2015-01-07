@@ -15,16 +15,20 @@ package de.sciss.mutagen
 package impl
 
 import de.sciss.file._
+import de.sciss.lucre.synth.InMemory
 import de.sciss.processor.impl.ProcessorImpl
+import de.sciss.span.Span
 import de.sciss.strugatzki.FeatureExtraction
-import de.sciss.synth._
-import de.sciss.synth.io.AudioFile
+import de.sciss.synth.{demand, UndefinedRate, UGenSpec, ugen, GE, SynthGraph}
+import de.sciss.synth.io.{AudioFileSpec, AudioFile}
+import de.sciss.synth.proc.{Timeline, ExprImplicits, Proc, Obj, WorkspaceHandle, Bounce}
 import de.sciss.synth.ugen.SampleRate
 import de.sciss.topology.Topology
 import Util._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
+import scala.concurrent.Future
 
 final class MutagenImpl(config: Mutagen.Config)
   extends Mutagen with ProcessorImpl[Mutagen.Product, Mutagen.Repr] {
@@ -43,17 +47,15 @@ final class MutagenImpl(config: Mutagen.Config)
     //
     // 7. return resulting population as SynthGraph
 
-    /*
     // -- 1 --
     // analyze input using Strugatzki
     val spec  = AudioFile.readSpec(config.in)
     require(spec.numChannels == 1, s"Input file '${config.in.name}' must be mono but has ${spec.numChannels} channels")
     val exCfg             = FeatureExtraction.Config()
     exCfg.audioInput      = config.in
-    exCfg.featureOutput   = File.createTemp(suffix = ".xml")
+    exCfg.featureOutput   = File.createTemp(suffix = ".aif")
     val ex                = FeatureExtraction(exCfg)
     ex.start()
-    */
 
     // -- 2 --
     // generate initial random population
@@ -164,6 +166,48 @@ final class MutagenImpl(config: Mutagen.Config)
     val f   = if (coin(0.25)) -f0 else f0
     val v   = Vertex.Constant(f.toFloat)
     v
+  }
+
+  def evaluate(c: Chromosome, spec: AudioFileSpec): Future[Double] = {
+    type S  = InMemory
+    implicit val cursor = InMemory()  // XXX TODO - create that once
+    val exp = ExprImplicits[S]
+    import exp._
+
+    val objH = cursor.step { implicit tx =>
+      val proc      = Proc[S]
+      proc.graph()  = c.graph
+      val procObj   = Obj(Proc.Elem(proc))
+      tx.newHandle(procObj)
+    }
+    import WorkspaceHandle.Implicits._
+    val bncCfg                      = Bounce.Config[S]
+    bncCfg.group                    = objH :: Nil
+    val audioF                      = File.createTemp(suffix = ".aif")
+    val duration                    = spec.numFrames.toDouble / spec.sampleRate
+    bncCfg.server.nrtOutputPath     = audioF.path
+    bncCfg.server.inputBusChannels  = 0
+    bncCfg.server.outputBusChannels = 1
+    bncCfg.server.sampleRate        = spec.sampleRate.toInt
+    // bc.init : (S#Tx, Server) => Unit
+    bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
+    val bnc   = Bounce[S, S].apply(bncCfg)
+    bnc.start()
+
+    val featF = File.createTemp(suffix = ".aif")
+
+    val ex = bnc.map { _ =>
+      val exCfg             = FeatureExtraction.Config()
+      exCfg.audioInput      = audioF
+      exCfg.featureOutput   = featF
+      val _ex               = FeatureExtraction(exCfg)
+      _ex.start()
+      _ex
+    }
+
+    // XXX TODO: run cross correlation
+
+    ???
   }
 
   def mkIndividual(): Chromosome = {

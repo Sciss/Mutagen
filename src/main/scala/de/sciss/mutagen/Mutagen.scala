@@ -14,8 +14,7 @@
 package de.sciss.mutagen
 
 import de.sciss.file._
-import de.sciss.processor.{Processor, GenericProcessor, ProcessorFactory}
-import de.sciss.synth.SynthGraph
+import de.sciss.processor.{Processor, ProcessorFactory}
 import de.sciss.mutagen.impl.{MutagenImpl => Impl}
 
 import scala.collection.immutable.{IndexedSeq => Vec}
