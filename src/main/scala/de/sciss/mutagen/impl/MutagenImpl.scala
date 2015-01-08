@@ -14,11 +14,13 @@
 package de.sciss.mutagen
 package impl
 
+import java.util.concurrent.TimeUnit
+
 import de.sciss.file._
 import de.sciss.lucre.synth.InMemory
 import de.sciss.processor.impl.ProcessorImpl
 import de.sciss.span.Span
-import de.sciss.strugatzki.FeatureExtraction
+import de.sciss.strugatzki.{FeatureCorrelation, FeatureExtraction}
 import de.sciss.synth.{demand, UndefinedRate, UGenSpec, ugen, GE, SynthGraph}
 import de.sciss.synth.io.{AudioFileSpec, AudioFile}
 import de.sciss.synth.proc.{Timeline, ExprImplicits, Proc, Obj, WorkspaceHandle, Bounce}
@@ -28,14 +30,17 @@ import Util._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{TimeoutException, Await, Future}
 
 final class MutagenImpl(config: Mutagen.Config)
   extends Mutagen with ProcessorImpl[Mutagen.Product, Mutagen.Repr] {
 
+  private val DEBUG = false
+
   implicit val random = new util.Random(config.seed)
 
-  protected def body(): Vec[Chromosome] = {
+  protected def body(): Vec[Evaluated] = {
     // outline of algorithm:
     // 1. analyze input using Strugatzki
     // 2. generate initial random population
@@ -49,19 +54,35 @@ final class MutagenImpl(config: Mutagen.Config)
 
     // -- 1 --
     // analyze input using Strugatzki
-    val spec  = AudioFile.readSpec(config.in)
-    require(spec.numChannels == 1, s"Input file '${config.in.name}' must be mono but has ${spec.numChannels} channels")
+    val inputSpec         = AudioFile.readSpec(config.in)
+    require(inputSpec.numChannels == 1, s"Input file '${config.in.name}' must be mono but has ${inputSpec.numChannels} channels")
     val exCfg             = FeatureExtraction.Config()
     exCfg.audioInput      = config.in
     exCfg.featureOutput   = File.createTemp(suffix = ".aif")
-    val ex                = FeatureExtraction(exCfg)
-    ex.start()
+    val inputExtr         = File.createTemp(suffix = "_feat.xml")
+    exCfg.metaOutput      = Some(inputExtr)
+    val futInputExtr      = FeatureExtraction(exCfg)
+    futInputExtr.start()
+    futInputExtr.onFailure {
+      case t => println(s"futInputExtr failed with $t")
+    }
 
     // -- 2 --
     // generate initial random population
     val pop0  = Vector.fill(config.population)(mkIndividual())
 
-    pop0
+    // make sure that `inputExtr` is ready
+    await[Unit](futInputExtr, offset = 0.0, weight = 0.01)
+
+    // -- 3 and 4 --
+    // render the chromosome as audio and calculate fitness using Strugatzki
+    val evalFut = pop0.map { c =>
+      evaluate(c, inputSpec, inputExtr)
+    }
+
+    val eval = Await.result[Vec[Evaluated]](Future.sequence(evalFut), Duration.Inf)
+
+    eval.sortBy(_.fitness).reverse
   }
 
   private def mkSynthGraph(top: Top): SynthGraph = {
@@ -123,7 +144,7 @@ final class MutagenImpl(config: Mutagen.Config)
       if (ugens.nonEmpty) {
         import de.sciss.synth.ugen._
         val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
-        val isOk  = CheckBadValues.ar(sig0) sig_== 0
+        val isOk  = CheckBadValues.ar(sig0, post = 0) sig_== 0
         val sig1  = Gate.ar(sig0, isOk)
         val sig   = Limiter.ar(LeakDC.ar(sig1))
         Out.ar(0, sig)
@@ -168,7 +189,9 @@ final class MutagenImpl(config: Mutagen.Config)
     v
   }
 
-  def evaluate(c: Chromosome, spec: AudioFileSpec): Future[Double] = {
+  private case class GenExtrFailed(cause: Throwable) extends Exception(cause)
+
+  def evaluate(c: Chromosome, inputSpec: AudioFileSpec, inputExtr: File): Future[Evaluated] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
     val exp = ExprImplicits[S]
@@ -184,30 +207,79 @@ final class MutagenImpl(config: Mutagen.Config)
     val bncCfg                      = Bounce.Config[S]
     bncCfg.group                    = objH :: Nil
     val audioF                      = File.createTemp(suffix = ".aif")
-    val duration                    = spec.numFrames.toDouble / spec.sampleRate
+    val numFrames                   = inputSpec.numFrames
+    val duration                    = numFrames.toDouble / inputSpec.sampleRate
     bncCfg.server.nrtOutputPath     = audioF.path
     bncCfg.server.inputBusChannels  = 0
     bncCfg.server.outputBusChannels = 1
-    bncCfg.server.sampleRate        = spec.sampleRate.toInt
+    bncCfg.server.sampleRate        = inputSpec.sampleRate.toInt
     // bc.init : (S#Tx, Server) => Unit
     bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
-    val bnc   = Bounce[S, S].apply(bncCfg)
-    bnc.start()
+    val bnc0  = Bounce[S, S].apply(bncCfg)
+    bnc0.start()
 
-    val featF = File.createTemp(suffix = ".aif")
+    val bnc = Future {
+      Await.result(bnc0, Duration(4.0, TimeUnit.SECONDS))
+    }
+    //    bnc.onFailure {
+    //      case t => println(s"bnc failed with $t")
+    //    }
 
-    val ex = bnc.map { _ =>
+    val genFolder           = File.createTemp(directory = true)
+    val genExtr             = genFolder / "gen_feat.xml"
+
+    val ex = bnc.flatMap { _ =>
       val exCfg             = FeatureExtraction.Config()
       exCfg.audioInput      = audioF
-      exCfg.featureOutput   = featF
+      exCfg.featureOutput   = File.createTemp(suffix = ".aif")
+      exCfg.metaOutput      = Some(genExtr)
       val _ex               = FeatureExtraction(exCfg)
       _ex.start()
-      _ex
+      //      _ex.onFailure {
+      //        case t => println(s"gen-extr failed with $t")
+      //      }
+      _ex.recover {
+        case cause => GenExtrFailed(cause)
+      }
     }
 
-    // XXX TODO: run cross correlation
+    val corr = ex.flatMap { _ =>
+      val corrCfg           = FeatureCorrelation.Config()
+      corrCfg.metaInput     = inputExtr
+      corrCfg.databaseFolder= genFolder
+      corrCfg.minSpacing    = Long.MaxValue >> 1
+      corrCfg.numMatches    = 1
+      corrCfg.numPerFile    = 1
+      corrCfg.maxBoost      = 8f
+      corrCfg.normalize     = false   // ok?
+      corrCfg.minPunch      = numFrames
+      corrCfg.maxPunch      = numFrames
+      corrCfg.punchIn       = FeatureCorrelation.Punch(span = Span(0L, numFrames), temporalWeight = 0.5f)
+      val _corr             = FeatureCorrelation(corrCfg)
+      _corr.start()
+      _corr
+    }
 
-    ???
+    val simFut0 = corr.map { matches =>
+      // assert(matches.size == 1)
+      val sim0 = matches.headOption.map(_.sim).getOrElse(0f)
+      val sim  = if (sim0.isNaN || sim0.isInfinite) 0.0 else sim0.toDouble
+      sim
+    }
+
+    val simFut = simFut0.recover {
+      case Bounce.ServerFailed(_) => 0.0
+      case GenExtrFailed(_) =>
+        if (DEBUG) println("Gen-extr failed!")
+        0.0
+
+      case _: TimeoutException    =>
+        if (DEBUG) println("Bounce timeout!")
+        bnc0.abort()
+        0.0    // we aborted the process after 4 seconds
+    }
+
+    simFut.map(new Evaluated(c, _))
   }
 
   def mkIndividual(): Chromosome = {

@@ -49,7 +49,7 @@ object Mutagen extends ProcessorFactory {
   protected def prepare(config: Config): Prepared = new Impl(config)
 
   type Repr     = Mutagen
-  type Product  = Vec[Chromosome]
+  type Product  = Vec[Evaluated]
 }
 trait Mutagen extends Processor[Mutagen.Product, Mutagen] {
   // implicit def random: util.Random

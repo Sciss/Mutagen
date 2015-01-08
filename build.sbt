@@ -4,9 +4,9 @@ version            := "0.1.0-SNAPSHOT"
 
 organization       := "de.sciss"
 
-scalaVersion       := "2.11.4"
+scalaVersion       := "2.11.5"
 
-crossScalaVersions := Seq("2.11.4", "2.10.4")
+crossScalaVersions := Seq("2.11.5", "2.10.4")
 
 description        := "An experiment with genetic programming and ScalaCollider"
 
@@ -24,12 +24,15 @@ lazy val strugatzkiVersion    = "2.7.0"
 
 lazy val topologyVersion      = "1.0.0"
 
+lazy val processorVersion     = "0.3.1"
+
 libraryDependencies ++= Seq(
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
   "de.sciss" %% "scalacollider"           % scalaColliderVersion,
   "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
-  "de.sciss" %% "topology"                % topologyVersion
+  "de.sciss" %% "topology"                % topologyVersion,
+  "de.sciss" %% "processor"               % processorVersion
 )
 
 scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")

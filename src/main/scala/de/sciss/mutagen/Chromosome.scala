@@ -70,10 +70,10 @@ sealed trait Vertex
   */
 case class Edge(sourceVertex: Vertex, targetVertex: Vertex, inlet: String) extends Topology.Edge[Vertex]
 
-class Chromosome(val top: Topology[Vertex, Edge], val graph: SynthGraph) {
-  def toSource: String = {
-    // top.vertices
+class Chromosome(val top: Topology[Vertex, Edge], val graph: SynthGraph)
 
-    ???
-  }
+class Evaluated(val chromosome: Chromosome, val fitness: Double) {
+  def graph: SynthGraph = chromosome.graph
+
+  override def toString = f"[${graph.sources.size} sources; fitness = $fitness%1.2f]@${hashCode.toHexString}"
 }
