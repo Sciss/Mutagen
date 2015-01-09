@@ -33,7 +33,7 @@ import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{TimeoutException, Await, Future}
 
-final class MutagenImpl(config: Mutagen.Config)
+final class MutagenImpl(val config: Mutagen.Config)
   extends Mutagen with ProcessorImpl[Mutagen.Product, Mutagen.Repr] {
 
   private val DEBUG = false

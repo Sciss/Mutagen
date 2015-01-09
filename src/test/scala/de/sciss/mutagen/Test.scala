@@ -15,7 +15,7 @@ object Test extends App {
   val cfg         = Mutagen.Config()
   // cfg.seed        = 0L
   cfg.in          = file("test-sound1.aif")
-  cfg.population  = 100
+  cfg.population  = 30
   val done        = Promise[Unit]()
   val proc: Mutagen = Mutagen.run(cfg) {
     case Processor.Result(_, Success(xs)) =>

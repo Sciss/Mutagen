@@ -14,7 +14,7 @@
 package de.sciss.mutagen
 
 import de.sciss.file._
-import de.sciss.processor.{Processor, ProcessorFactory}
+import de.sciss.processor.{ProcessorLike, ProcessorFactory}
 import de.sciss.mutagen.impl.{MutagenImpl => Impl}
 
 import scala.collection.immutable.{IndexedSeq => Vec}
@@ -51,6 +51,7 @@ object Mutagen extends ProcessorFactory {
   type Repr     = Mutagen
   type Product  = Vec[Evaluated]
 }
-trait Mutagen extends Processor[Mutagen.Product, Mutagen] {
+trait Mutagen extends ProcessorLike[Mutagen.Product, Mutagen] {
+  def config: Mutagen.Config
   // implicit def random: util.Random
 }
