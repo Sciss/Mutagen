@@ -13,9 +13,11 @@
 
 package de.sciss.mutagen
 
-import de.sciss.synth.{GE, SynthGraph, UGenSpec}
+import de.sciss.synth.ugen.SampleRate
+import de.sciss.synth.{UndefinedRate, ugen, GE, SynthGraph, UGenSpec}
 import de.sciss.topology.Topology
 
+import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
 
 object Vertex {
@@ -70,7 +72,75 @@ sealed trait Vertex
   */
 case class Edge(sourceVertex: Vertex, targetVertex: Vertex, inlet: String) extends Topology.Edge[Vertex]
 
-class Chromosome(val top: Topology[Vertex, Edge], val graph: SynthGraph)
+class Chromosome(val top: Topology[Vertex, Edge], val seed: Long) {
+  lazy val graph: SynthGraph = {
+    import Util._
+    implicit val rnd = new util.Random(seed)
+    @tailrec def loop(rem: Vec[Vertex], real: Map[Vertex, GE]): Map[Vertex, GE] = rem match {
+      case init :+ last =>
+        val value: GE = last match {
+          case Vertex.Constant(f) => ugen.Constant(f)
+          case u @ Vertex.UGen(spec) =>
+            val ins = spec.args.map { arg =>
+              val res: (AnyRef, Class[_]) = arg.tpe match {
+                case UGenSpec.ArgumentType.Int =>
+                  val v = arg.defaults.get(UndefinedRate) match {
+                    case Some(UGenSpec.ArgumentValue.Int(i)) => i
+                    case _ => rrand(1, 2)
+                  }
+                  (v.asInstanceOf[AnyRef], classOf[Int])
+
+                case UGenSpec.ArgumentType.GE(_, _) =>
+                  val inGEOpt = top.edgeMap.getOrElse(last, Set.empty).flatMap { e =>
+                    if (e.inlet == arg.name) real.get(e.targetVertex) else None
+                  } .headOption
+                  val inGE = inGEOpt.getOrElse {
+                    val x = arg.defaults.get(UndefinedRate)
+                    // if (x.isEmpty) {
+                    //   println("HERE")
+                    // }
+                    x.get /* arg.defaults(UndefinedRate) */ match {
+                      case UGenSpec.ArgumentValue.Boolean(v)    => ugen.Constant(if (v) 1 else 0)
+                      case UGenSpec.ArgumentValue.DoneAction(v) => ugen.Constant(v.id)
+                      case UGenSpec.ArgumentValue.Float(v)      => ugen.Constant(v)
+                      case UGenSpec.ArgumentValue.Inf           => ugen.Constant(Float.PositiveInfinity)
+                      case UGenSpec.ArgumentValue.Int(v)        => ugen.Constant(v)
+                      case UGenSpec.ArgumentValue.Nyquist       => SampleRate.ir / 2
+                      case UGenSpec.ArgumentValue.String(v)     => ugen.Escape.stringToGE(v)
+                    }
+                  }
+                  (inGE, classOf[GE])
+              }
+              res
+            }
+
+            u.instantiate(ins)
+        }
+
+        loop(init, real + (last -> value))
+
+      case _ =>  real
+    }
+
+    SynthGraph {
+      val map   = loop(top.vertices, Map.empty)
+      val ugens = top.vertices.collect {
+        case ugen: Vertex.UGen => ugen
+      }
+      val roots = ugens.filter { ugen =>
+        top.edges.forall(_.targetVertex != ugen)
+      }
+      if (ugens.nonEmpty) {
+        import de.sciss.synth.ugen._
+        val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
+        val isOk  = CheckBadValues.ar(sig0, post = 0) sig_== 0
+        val sig1  = Gate.ar(sig0, isOk)
+        val sig   = Limiter.ar(LeakDC.ar(sig1))
+        Out.ar(0, sig)
+      }
+    }
+  }
+}
 
 class Evaluated(val chromosome: Chromosome, val fitness: Double) {
   def graph: SynthGraph = chromosome.graph

@@ -20,10 +20,13 @@ lazy val ugensVersion           = "1.13.0-SNAPSHOT"
 
 lazy val strugatzkiVersion      = "2.8.0-SNAPSHOT"
 
+lazy val mutaVersion            = "0.5.0-SNAPSHOT"
+
 libraryDependencies ++= Seq(
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
   "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
-  "de.sciss" %% "strugatzki"              % strugatzkiVersion
+  "de.sciss" %% "strugatzki"              % strugatzkiVersion,
+  "de.sciss" %% "muta"                    % mutaVersion
 )
 
 scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")
