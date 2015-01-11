@@ -14,15 +14,19 @@ homepage           := Some(url("https://github.com/Sciss/" + name.value))
 
 licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
-lazy val soundProcessesVersion  = "2.12.0-SNAPSHOT"
+lazy val soundProcessesVersion  = "2.12.0"
 
-lazy val ugensVersion           = "1.13.0-SNAPSHOT"
+lazy val ugensVersion           = "1.13.0"
 
-lazy val strugatzkiVersion      = "2.8.0-SNAPSHOT"
+lazy val strugatzkiVersion      = "2.8.0"
 
 lazy val mutaVersion            = "0.5.0-SNAPSHOT"
 
 lazy val fileCacheVersion       = "0.3.2"
+
+// lazy val audioWidgetsVersion    = "1.7.2"
+
+lazy val scalaColliderSwingVersion = "1.22.0"
 
 lazy val webLaFVersion          = "1.28"
 
@@ -32,6 +36,8 @@ libraryDependencies ++= Seq(
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
   "de.sciss" %% "muta"                    % mutaVersion,
   "de.sciss" %% "filecache-mutable"       % fileCacheVersion,
+  // "de.sciss" %% "audiowidgets-swing"      % audioWidgetsVersion,
+  "de.sciss" %% "scalacolliderswing-core" % scalaColliderSwingVersion,
   "de.sciss" %  "weblaf"                  % webLaFVersion
 )
 
