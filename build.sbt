@@ -12,7 +12,7 @@ description        := "An experiment with genetic programming and ScalaCollider"
 
 homepage           := Some(url("https://github.com/Sciss/" + name.value))
 
-licenses           := Seq("GPL v2+" -> url("http://www.gnu.org/licenses/gpl-2.0.txt"))
+licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
 lazy val soundProcessesVersion  = "2.12.0-SNAPSHOT"
 
@@ -22,11 +22,17 @@ lazy val strugatzkiVersion      = "2.8.0-SNAPSHOT"
 
 lazy val mutaVersion            = "0.5.0-SNAPSHOT"
 
+lazy val fileCacheVersion       = "0.3.2"
+
+lazy val webLaFVersion          = "1.28"
+
 libraryDependencies ++= Seq(
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
   "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
-  "de.sciss" %% "muta"                    % mutaVersion
+  "de.sciss" %% "muta"                    % mutaVersion,
+  "de.sciss" %% "filecache-mutable"       % fileCacheVersion,
+  "de.sciss" %  "weblaf"                  % webLaFVersion
 )
 
 scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")

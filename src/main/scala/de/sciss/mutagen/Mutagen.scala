@@ -2,9 +2,9 @@
  *  Mutagen.scala
  *  (Mutagen)
  *
- *  Copyright (c) 2014 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2014-2015 Hanns Holger Rutz. All rights reserved.
  *
- *  This software is published under the GNU General Public License v2+
+ *  This software is published under the GNU General Public License v3+
  *
  *
  *  For further information, please contact Hanns Holger Rutz at
@@ -24,15 +24,15 @@ object Mutagen extends ProcessorFactory {
   sealed trait ConfigLike {
     def in: File
     def population: Int
-    def iterations: Int
-    def elitism: Int
+    // def iterations: Int
+    // def elitism: Int
     def seed: Long
   }
   object Config {
     def apply(): ConfigBuilder = new ConfigBuilder
     implicit def build(b: ConfigBuilder): Config = b.build
   }
-  case class Config private[Mutagen] (in: File, population: Int, iterations: Int, elitism: Int, seed: Long)
+  case class Config private[Mutagen] (in: File, population: Int, /* iterations: Int, elitism: Int, */ seed: Long)
     extends ConfigLike
 
   final class ConfigBuilder private[Mutagen] () extends ConfigLike {
@@ -42,7 +42,7 @@ object Mutagen extends ProcessorFactory {
     var elitism     = 2
     var seed        = System.currentTimeMillis()
 
-    def build: Config = Config(in = in, population = population, iterations = iterations, elitism = elitism,
+    def build: Config = Config(in = in, population = population, /* iterations = iterations, elitism = elitism, */
       seed = seed)
   }
 
@@ -50,6 +50,8 @@ object Mutagen extends ProcessorFactory {
 
   type Repr     = Mutagen
   type Product  = Vec[Evaluated]
+
+  case class FeatureExtractionFailed(cause: Throwable) extends Exception(cause)
 }
 trait Mutagen extends ProcessorLike[Mutagen.Product, Mutagen] {
   def config: Mutagen.Config
