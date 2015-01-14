@@ -16,7 +16,7 @@ licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.
 
 lazy val soundProcessesVersion  = "2.12.0"
 
-lazy val ugensVersion           = "1.13.0"
+lazy val ugensVersion           = "1.13.1-SNAPSHOT"
 
 lazy val strugatzkiVersion      = "2.8.0"
 
@@ -32,6 +32,7 @@ lazy val webLaFVersion          = "1.28"
 
 libraryDependencies ++= Seq(
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
+  "de.sciss" %% "scalacolliderugens-core" % ugensVersion,
   "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
   "de.sciss" %% "muta"                    % mutaVersion,

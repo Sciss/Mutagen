@@ -258,11 +258,9 @@ object ChromosomeImpl {
       val ugens = top.vertices.collect {
         case ugen: Vertex.UGen => ugen
       }
-      val roots = ugens.filter { ugen =>
-        top.edges.forall(_.targetVertex != ugen)
-      }
       if (ugens.nonEmpty) {
         import de.sciss.synth.ugen._
+        val roots = getRoots(top)
         val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
         val sig1  = if (mono) Mix.mono(sig0) else sig0
         val isOk  = CheckBadValues.ar(sig1, post = 0) sig_== 0
@@ -270,6 +268,15 @@ object ChromosomeImpl {
         val sig   = Limiter.ar(LeakDC.ar(sig2))
         Out.ar(0, sig)
       }
+    }
+  }
+
+  private def getRoots(top: Top): Vec[Vertex.UGen] = {
+    val ugens = top.vertices.collect {
+      case ugen: Vertex.UGen => ugen
+    }
+    ugens.filter { ugen =>
+      top.edges.forall(_.targetVertex != ugen)
     }
   }
 
@@ -290,7 +297,7 @@ object ChromosomeImpl {
     Array(-0.10048226f,0.64655834f)
   )
 
-  def evaluate(c: Chromosome, inputSpec: AudioFileSpec, inputExtr: File)
+  def evaluate(c: Chromosome, eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
               (implicit exec: ExecutionContext): Future[Evaluated] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
@@ -328,9 +335,7 @@ object ChromosomeImpl {
     val genFolder           = File.createTemp(directory = true)
     val genExtr             = genFolder / "gen_feat.xml"
 
-    val normalize = true  // XXX TODO
-
-    if (normalize) blocking {
+    if (eval.normalize) blocking {
       val normF   = genFolder / Strugatzki.NormalizeName
       val normAF  = AudioFile.openWrite(normF, AudioFileSpec(numChannels = featNorms.length, sampleRate = 44100))
       normAF.write(featNorms)
@@ -359,11 +364,13 @@ object ChromosomeImpl {
       corrCfg.minSpacing    = Long.MaxValue >> 1
       corrCfg.numMatches    = 1
       corrCfg.numPerFile    = 1
-      corrCfg.maxBoost      = 8f
-      corrCfg.normalize     = normalize
+      corrCfg.maxBoost      = eval.maxBoost.toFloat
+      corrCfg.normalize     = eval.normalize
       corrCfg.minPunch      = numFrames
       corrCfg.maxPunch      = numFrames
-      corrCfg.punchIn       = FeatureCorrelation.Punch(span = Span(0L, numFrames), temporalWeight = 0.5f)
+      corrCfg.punchIn       = FeatureCorrelation.Punch(
+        span = Span(0L, numFrames),
+        temporalWeight = eval.temporalWeight.toFloat)
       val _corr             = FeatureCorrelation(corrCfg)
       _corr.start()
       _corr
@@ -389,5 +396,95 @@ object ChromosomeImpl {
     }
 
     simFut.map(new Evaluated(c, _))
+  }
+
+  private case class StringRep(lhs: String, rhs: String) {
+    override def toString = s"val $lhs = $rhs"
+  }
+
+  def graphAsString(c: Chromosome): String = {
+    import Util._
+    import c.{seed, top}
+    implicit val rnd = new Random(seed)
+    val vertices    = top.vertices
+    val numVertices = vertices.size
+
+    @tailrec def loop(rem: Vec[Vertex], real: Map[Vertex, StringRep]): Map[Vertex, StringRep] = rem match {
+      case init :+ last =>
+        val value: String = last match {
+          case Vertex.Constant(f) => f.toString // XXX TODO
+          case u @ Vertex.UGen(spec) =>
+            val ins = spec.args.map { arg =>
+              val res: String /* (AnyRef, Class[_]) */ = arg.tpe match {
+                case UGenSpec.ArgumentType.Int =>
+                  val v = arg.defaults.get(UndefinedRate) match {
+                    case Some(UGenSpec.ArgumentValue.Int(i)) => i
+                    case _ => rrand(1, 2)
+                  }
+                  v.toString
+
+                case UGenSpec.ArgumentType.GE(_, _) =>
+                  val inGEOpt = top.edgeMap.getOrElse(last, Set.empty).flatMap { e =>
+                    if (e.inlet == arg.name) real.get(e.targetVertex).map(_.lhs) else None
+                  } .headOption
+                  val inGE = inGEOpt.getOrElse {
+                    val xOpt = arg.defaults.get(UndefinedRate)
+                    val x    = xOpt.getOrElse {
+                      val inc = findIncompleteUGenInputs(top, u)
+                      println("INCOMPLETE:")
+                      inc.foreach(println)
+                      sys.error(s"Vertex $spec has no input for inlet $arg")
+                    }
+                    x match {
+                      case UGenSpec.ArgumentValue.Boolean(v)    => (if (v) 1 else 0).toString
+                      case UGenSpec.ArgumentValue.DoneAction(v) => v.name
+                      case UGenSpec.ArgumentValue.Float(v)      => v.toString
+                      case UGenSpec.ArgumentValue.Inf           => "inf"
+                      case UGenSpec.ArgumentValue.Int(v)        => v.toString
+                      case UGenSpec.ArgumentValue.Nyquist       => "SampleRate.ir/2"
+                      case UGenSpec.ArgumentValue.String(v)     => v
+                    }
+                  }
+                  inGE
+              }
+              res
+            }
+
+            val rates = u.info.rates
+            val consName0 = rates.method match {
+              case UGenSpec.RateMethod.Alias (name) => name
+              case UGenSpec.RateMethod.Custom(name) => name
+              case UGenSpec.RateMethod.Default =>
+                val rate = rates.set.max
+                rate.methodName
+            }
+            val consName = if (consName0 == "apply") "" else s".$consName0"
+            ins.mkString(s"${u.info.name}$consName(", ", ", ")")
+
+            // u.instantiate(ins)
+        }
+
+        val valName = s"v${numVertices - rem.size}"
+        val rep     = StringRep(valName, value)
+        loop(init, real + (last -> rep))
+
+      case _ =>  real
+    }
+
+    //    val ugens = top.vertices.collect {
+    //      case ugen: Vertex.UGen => ugen
+    //    }
+    val roots     = getRoots(top)
+    val map       = loop(vertices, Map.empty)
+    val rootsSym  = roots.map(map(_).lhs)
+    val verticesS = vertices.map(map(_).toString).reverse.mkString("\n")
+    val mixS      = rootsSym.toList match {
+      case Nil => ""
+      case single :: Nil => s"$single\n"
+      case multiple =>
+        val rootsS = multiple.mkString("val roots = Vector(", ", ", ")")
+        s"$rootsS\nval sig = Mix(roots)\nLimiter.ar(LeakDC.ar(sig))\n"
+    }
+    s"$verticesS\n$mixS"
   }
 }

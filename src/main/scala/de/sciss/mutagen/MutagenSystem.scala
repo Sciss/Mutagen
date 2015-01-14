@@ -47,9 +47,7 @@ object MutagenSystem extends muta.System {
     def apply(random: Random): Chromosome = Chromosome()(random, global)
   }
 
-  // type Evaluation = Evaluation.type
-  def Evaluation: Evaluation = impl.EvaluationImpl
-  trait Evaluation extends muta.Evaluation[Chromosome, Global]
+  type Evaluation = mutagen.Evaluation
 
   object Selection extends muta.Selection[Chromosome] with muta.impl.SelectionRouletteImpl[Chromosome] {
 
@@ -91,7 +89,7 @@ object MutagenSystem extends muta.System {
   implicit val globalFormat: Format[Global] = AutoFormat[Global]
   def generationFormat: Format[Generation] = AutoFormat[Generation]
 
-  val evaluationFormat: Format[Evaluation] = new SingletonFormat(Evaluation)
+  val evaluationFormat: Format[Evaluation] = AutoFormat[Evaluation]
   val selectionFormat : Format[Selection ] = new SingletonFormat(Selection )
   val breedingFormat  : Format[Breeding  ] = new SingletonFormat(Breeding  )
 
@@ -99,7 +97,7 @@ object MutagenSystem extends muta.System {
 
   def defaultGeneration: Generation = Generation()
 
-  def defaultEvaluation: Evaluation = Evaluation
+  def defaultEvaluation: Evaluation = Evaluation()
   def defaultSelection : Selection  = Selection
   def defaultBreeding  : Breeding   = Breeding
 

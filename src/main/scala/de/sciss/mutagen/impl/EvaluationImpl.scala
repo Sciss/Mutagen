@@ -24,7 +24,7 @@ import de.sciss.synth.io.AudioFile
 import scala.concurrent.{Await, Future, blocking}
 import scala.concurrent.duration.Duration
 
-object EvaluationImpl extends MutagenSystem.Evaluation {
+object EvaluationImpl {
   private object CacheValue {
     implicit object serializer extends ImmutableSerializer[CacheValue] {
       def write(v: CacheValue, out: DataOutput): Unit = {
@@ -73,13 +73,13 @@ object EvaluationImpl extends MutagenSystem.Evaluation {
     }
   }
 
-  def apply(c: Chromosome, g: MutagenSystem.Global): Double = {
+  def apply(c: Chromosome, eval: Evaluation, g: MutagenSystem.Global): Double = {
     val key     = g.input
     val futMeta = cache.acquire(key)
     val futEval = futMeta.flatMap { v =>
       val inputExtr = v.meta
       val inputSpec = blocking(AudioFile.readSpec(key))
-      c.evaluate(inputSpec, inputExtr)
+      c.evaluate(eval, inputSpec, inputExtr)
     }
     val fitness = Await.result(futEval, Duration.Inf).fitness
     cache.release(key)

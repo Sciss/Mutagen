@@ -80,11 +80,20 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       "killall scsynth".!
     }
 
+    val butPrint = Button("Print") {
+      frame.selectedNodes.foreach { node =>
+        val txt = node.chromosome.graphAsString
+        println(txt)
+      }
+    }
+
     pStatus.bootAction = Some(boot)
     val bs = Transport.makeButtonStrip(Seq(Transport.Stop(stopSynth()), Transport.Play(playSynth())))
-    frame.topPanel.contents += pStatus
-    frame.topPanel.contents += butKill
-    frame.topPanel.contents += bs
+    val tp = frame.topPanel.contents
+    tp += pStatus
+    tp += butKill
+    tp += butPrint
+    tp += bs
   }
 
   private final class MainFrame extends WindowImpl {

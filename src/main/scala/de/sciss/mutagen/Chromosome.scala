@@ -79,13 +79,16 @@ object Chromosome {
 class Chromosome(val top: Top, val seed: Long) {
   lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false)
 
-  def evaluate(inputSpec: AudioFileSpec, inputExtr: File)(implicit exec: ExecutionContext): Future[Evaluated] =
-    impl.ChromosomeImpl.evaluate(this, inputSpec, inputExtr)
+  def evaluate(eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
+              (implicit exec: ExecutionContext): Future[Evaluated] =
+    impl.ChromosomeImpl.evaluate(this, eval, inputSpec, inputExtr)
 
   private lazy val numVertices  = top.vertices.size
   private lazy val numEdges     = top.edges   .size
 
   override def toString = f"[$numVertices vertices; $numEdges edges]@${hashCode.toHexString}"
+
+  def graphAsString: String = impl.ChromosomeImpl.graphAsString(this)
 }
 
 class Evaluated(val chromosome: Chromosome, val fitness: Double) {
