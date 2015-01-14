@@ -16,7 +16,7 @@ package de.sciss.mutagen
 import de.sciss.file._
 import de.sciss.guiflitz.{Cell, AutoView}
 import de.sciss.model.Model
-import de.sciss.muta.{SelectionPercent, SelectionSize, Vec}
+import de.sciss.muta.{SelectionNumber, BreedingFunction, SelectionPercent, SelectionSize, Vec}
 import de.sciss.mutagen.gui.PathField
 import de.sciss.play.json.AutoFormat
 import de.sciss.synth.io.AudioFile
@@ -24,7 +24,7 @@ import de.sciss.{muta, mutagen}
 import play.api.libs.json.{JsSuccess, JsError, JsString, JsResult, JsValue, Format}
 
 import scala.reflect.{ClassTag, classTag}
-import scala.swing.{Component, Label}
+import scala.swing.Label
 import scala.swing.event.ValueChanged
 import scala.util.Random
 
@@ -34,7 +34,7 @@ object MutagenSystem extends muta.System {
 
   // ---- settings ----
 
-  case class Global(input: File = file("input.aif"), population: Int = 50, seed: Int = 0)
+  type Global = mutagen.Global
 
   // ---- types ----
 
@@ -44,7 +44,7 @@ object MutagenSystem extends muta.System {
     def size: Int = global.population
     def seed: Int = global.seed
 
-    def apply(random: Random): Chromosome = Chromosome()(random)
+    def apply(random: Random): Chromosome = Chromosome()(random, global)
   }
 
   // type Evaluation = Evaluation.type
@@ -58,8 +58,21 @@ object MutagenSystem extends muta.System {
   }
   type Selection = Selection.type
 
-  object Breeding extends muta.Breeding[Chromosome, Global] {
-    def apply(sel: Vec[(Chromosome, Double, Boolean)], g: Global, rnd: Random): Vec[Chromosome] = ???
+  object Breeding extends muta.Breeding[Chromosome, Global] with muta.impl.BreedingImpl[Chromosome, Global] {
+    //    def apply(sel: Vec[(Chromosome, Double, Boolean)], g: Global, rnd: Random): Vec[Chromosome] = {
+    //      Vec.tabulate(g.population)(i => sel(i % sel.size)._1)
+    //    }
+
+    val elitism        : SelectionSize    = SelectionNumber (4)  // XXX TODO
+    val crossoverWeight: SelectionPercent = SelectionPercent(0)  // XXX TODO
+
+    object crossover extends BreedingFunction[Chromosome, Global] {
+      def apply(genome: Vec[Chromosome], sz: Int, global: Global, rnd: Random): Vec[Chromosome] = {
+        ???
+      }
+    }
+
+    def mutation: BreedingFunction[Chromosome, Global] = impl.MutationImpl
   }
   type Breeding = Breeding.type
 

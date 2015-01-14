@@ -74,10 +74,10 @@ sealed trait Vertex
 case class Edge(sourceVertex: Vertex, targetVertex: Vertex, inlet: String) extends Topology.Edge[Vertex]
 
 object Chromosome {
-  def apply()(implicit random: util.Random): Chromosome = impl.ChromosomeImpl.mkIndividual()
+  def apply()(implicit random: util.Random, global: Global): Chromosome = impl.ChromosomeImpl.mkIndividual()
 }
-class Chromosome(val top: Topology[Vertex, Edge], val seed: Long) {
-  lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this)
+class Chromosome(val top: Top, val seed: Long) {
+  lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false)
 
   def evaluate(inputSpec: AudioFileSpec, inputExtr: File)(implicit exec: ExecutionContext): Future[Evaluated] =
     impl.ChromosomeImpl.evaluate(this, inputSpec, inputExtr)

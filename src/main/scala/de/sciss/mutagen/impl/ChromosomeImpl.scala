@@ -7,8 +7,8 @@ import de.sciss.file._
 import de.sciss.lucre.synth.InMemory
 import de.sciss.mutagen.Util._
 import de.sciss.span.Span
-import de.sciss.strugatzki.{FeatureCorrelation, FeatureExtraction}
-import de.sciss.synth.io.AudioFileSpec
+import de.sciss.strugatzki.{Strugatzki, FeatureCorrelation, FeatureExtraction}
+import de.sciss.synth.io.{AudioFile, AudioFileSpec}
 import de.sciss.synth.proc.{Timeline, Bounce, WorkspaceHandle, Obj, Proc, ExprImplicits}
 import de.sciss.synth.ugen.SampleRate
 import de.sciss.synth.{SynthGraph, ugen, GE, demand, UndefinedRate, UGenSpec}
@@ -18,7 +18,7 @@ import play.api.libs.json.{JsArray, JsObject, JsError, JsSuccess, JsString, JsNu
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
-import scala.concurrent.{ExecutionContext, TimeoutException, Await, Future}
+import scala.concurrent.{ExecutionContext, TimeoutException, Await, Future, blocking}
 import scala.concurrent.duration.Duration
 import scala.util.Random
 
@@ -48,11 +48,6 @@ object ChromosomeImpl {
     spec.attr.intersect(NoNoAttr).isEmpty && !RemoveUGens.contains(spec.name) && spec.outputs.nonEmpty &&
       !spec.rates.set.contains(demand)
   } .toIndexedSeq
-
-  private val constProb       = 0.5
-  private val minNumVertices  = 4
-  private val maxNumVertices  = 50 // 100
-  private val nonDefaultProb  = 0.5
 
   private implicit object VertexFormat extends json.Format[Vertex] {
     def reads(json: JsValue): JsResult[Vertex] = {
@@ -131,60 +126,81 @@ object ChromosomeImpl {
     v
   }
 
-  def mkIndividual()(implicit random: Random): Chromosome = {
+  def findIncompleteUGenInputs(t1: Top, v: Vertex.UGen): Vec[String] = {
+    val spec      = v.info
+    val edgeSet   = t1.edgeMap.getOrElse(v, Set.empty)
+    val argsFree  = spec.args.filter { arg => !edgeSet.exists(_.inlet == arg.name) }
+    val geArgs    = argsFree.filter(_.tpe != UGenSpec.ArgumentType.Int)
+    val inc       = geArgs.filterNot(_.defaults.contains(UndefinedRate))
+    inc.map(_.name)
+  }
+
+  def completeUGenInputs(t1: Top, v: Vertex.UGen)(implicit random: Random, global: Global): Top = {
+    import global.nonDefaultProb
+    val spec    = v.info
+    // An edge's source is the consuming UGen, i.e. the one whose inlet is occupied!
+    // A topology's edgeMap uses source-vertices as keys. Therefore, we can see
+    // if the an argument is connected by getting the edges for the ugen and finding
+    // an edge that uses the inlet name.
+    val edgeSet = t1.edgeMap.getOrElse(v, Set.empty)
+    val argsFree = spec.args.filter { arg => !edgeSet.exists(_.inlet == arg.name) }
+    val geArgs  = argsFree.filter(_.tpe != UGenSpec.ArgumentType.Int)
+    val (hasDef, hasNoDef)          = geArgs.partition(_.defaults.contains(UndefinedRate))
+    val (useNotDef, _ /* useDef */) = hasDef.partition(_ => coin(nonDefaultProb))
+    val findDef = hasNoDef ++ useNotDef
+
+    @tailrec def loopVertex(rem: Vec[UGenSpec.Argument], pred: Top): Top = rem match {
+      case head +: tail =>
+        val options = pred.vertices.filter { vi =>
+          val e = Edge(v, vi, head.name)
+          pred.canAddEdge(e)
+        }
+        val next: Top = if (options.nonEmpty) {
+          val vi  = choose(options)
+          val e   = Edge(v, vi, head.name)
+          pred.addEdge(e).get._1
+        } else {
+          val vi  = mkConstant()
+          val n0  = pred.addVertex(vi)
+          val e   = Edge(v, vi, head.name)
+          n0.addEdge(e).get._1
+        }
+
+        loopVertex(tail, next)
+
+      case _ => pred
+    }
+
+    loopVertex(findDef, t1)
+  }
+
+  def addVertex(pred: Top)(implicit random: Random, global: Global): Top = {
+    import global.constProb
+    val next: Top = if (coin(constProb)) {
+      val v = mkConstant()
+      pred.addVertex(v)
+
+    } else {
+      val spec    = choose(ugens)
+      val v       = Vertex.UGen(spec)
+      val t1      = pred.addVertex(v)
+      completeUGenInputs(t1, v)
+    }
+    next
+  }
+
+  def mkIndividual()(implicit random: Random, global: Global): Chromosome = {
+    import global.{minNumVertices, maxNumVertices}
     val num = rrand(minNumVertices, maxNumVertices)
 
     @tailrec def loopGraph(pred: Top): Top =
-      if (pred.vertices.size >= num) pred else {
-        val next: Top = if (coin(constProb)) {
-          val v = mkConstant()
-          pred.addVertex(v)
-
-        } else {
-          val spec    = choose(ugens)
-          val v       = Vertex.UGen(spec)
-          //          if (spec.name == "Pitch") {
-          //            println("HERE")
-          //          }
-          val t1      = pred.addVertex(v)
-          val geArgs  = spec.args.filter(_.tpe != UGenSpec.ArgumentType.Int)
-          val (hasDef, hasNoDef)          = geArgs.partition(_.defaults.contains(UndefinedRate))
-          val (useNotDef, _ /* useDef */) = hasDef.partition(_ => coin(nonDefaultProb))
-          val findDef = hasNoDef ++ useNotDef
-
-          @tailrec def loopVertex(rem: Vec[UGenSpec.Argument], pred: Top): Top = rem match {
-            case head +: tail =>
-              val options = pred.vertices.filter { vi =>
-                val e = Edge(v, vi, head.name)
-                pred.canAddEdge(e)
-              }
-              val next: Top = if (options.nonEmpty) {
-                val vi  = choose(options)
-                val e   = Edge(v, vi, head.name)
-                pred.addEdge(e).get._1
-              } else {
-                val vi  = mkConstant()
-                val n0  = pred.addVertex(vi)
-                val e   = Edge(v, vi, head.name)
-                n0.addEdge(e).get._1
-              }
-
-              loopVertex(tail, next)
-
-            case _ => pred
-          }
-
-          loopVertex(findDef, t1)
-        }
-
-        loopGraph(next)
-      }
+      if (pred.vertices.size >= num) pred else loopGraph(addVertex(pred))
 
     val t0 = loopGraph(Topology.empty)
     new Chromosome(t0, seed = random.nextLong())
   }
 
-  def mkSynthGraph(c: Chromosome): SynthGraph = {
+  def mkSynthGraph(c: Chromosome, mono: Boolean): SynthGraph = {
     import Util._
     import c.{seed, top}
     implicit val rnd = new Random(seed)
@@ -207,11 +223,14 @@ object ChromosomeImpl {
                     if (e.inlet == arg.name) real.get(e.targetVertex) else None
                   } .headOption
                   val inGE = inGEOpt.getOrElse {
-                    val x = arg.defaults.get(UndefinedRate)
-                    // if (x.isEmpty) {
-                    //   println("HERE")
-                    // }
-                    x.get /* arg.defaults(UndefinedRate) */ match {
+                    val xOpt = arg.defaults.get(UndefinedRate)
+                    val x    = xOpt.getOrElse {
+                      val inc = findIncompleteUGenInputs(top, u)
+                      println("INCOMPLETE:")
+                      inc.foreach(println)
+                      sys.error(s"Vertex $spec has no input for inlet $arg")
+                    }
+                    x match {
                       case UGenSpec.ArgumentValue.Boolean(v)    => ugen.Constant(if (v) 1 else 0)
                       case UGenSpec.ArgumentValue.DoneAction(v) => ugen.Constant(v.id)
                       case UGenSpec.ArgumentValue.Float(v)      => ugen.Constant(v)
@@ -245,13 +264,31 @@ object ChromosomeImpl {
       if (ugens.nonEmpty) {
         import de.sciss.synth.ugen._
         val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
-        val isOk  = CheckBadValues.ar(sig0, post = 0) sig_== 0
-        val sig1  = Gate.ar(sig0, isOk)
-        val sig   = Limiter.ar(LeakDC.ar(sig1))
+        val sig1  = if (mono) Mix.mono(sig0) else sig0
+        val isOk  = CheckBadValues.ar(sig1, post = 0) sig_== 0
+        val sig2  = Gate.ar(sig1, isOk)
+        val sig   = Limiter.ar(LeakDC.ar(sig2))
         Out.ar(0, sig)
       }
     }
   }
+
+  private val featNorms = Array[Array[Float]](
+    Array(0.006015186f,1.4569731f),
+    Array(-1.4816481f,3.093808f),
+    Array(-1.4089416f,1.267046f),
+    Array(-0.860692f,1.4034394f),
+    Array(-0.65952975f,1.431201f),
+    Array(-0.66072506f,0.8506244f),
+    Array(-0.2808966f,0.90672106f),
+    Array(-0.29912513f,0.705802f),
+    Array(-0.22443223f,0.67802113f),
+    Array(-0.1471797f,0.68207365f),
+    Array(-0.104354106f,0.6723507f),
+    Array(-0.2412649f,0.70821077f),
+    Array(-0.16983563f,0.6771785f),
+    Array(-0.10048226f,0.64655834f)
+  )
 
   def evaluate(c: Chromosome, inputSpec: AudioFileSpec, inputExtr: File)
               (implicit exec: ExecutionContext): Future[Evaluated] = {
@@ -262,7 +299,7 @@ object ChromosomeImpl {
 
     val objH = cursor.step { implicit tx =>
       val proc      = Proc[S]
-      proc.graph()  = c.graph
+      proc.graph()  = mkSynthGraph(c, mono = true) // c.graph
       val procObj   = Obj(Proc.Elem(proc))
       tx.newHandle(procObj)
     }
@@ -291,6 +328,15 @@ object ChromosomeImpl {
     val genFolder           = File.createTemp(directory = true)
     val genExtr             = genFolder / "gen_feat.xml"
 
+    val normalize = true  // XXX TODO
+
+    if (normalize) blocking {
+      val normF   = genFolder / Strugatzki.NormalizeName
+      val normAF  = AudioFile.openWrite(normF, AudioFileSpec(numChannels = featNorms.length, sampleRate = 44100))
+      normAF.write(featNorms)
+      normAF.close()
+    }
+
     val ex = bnc.flatMap { _ =>
       val exCfg             = FeatureExtraction.Config()
       exCfg.audioInput      = audioF
@@ -302,7 +348,7 @@ object ChromosomeImpl {
       //        case t => println(s"gen-extr failed with $t")
       //      }
       _ex.recover {
-        case cause => Mutagen.FeatureExtractionFailed(cause)
+        case cause => FeatureExtractionFailed(cause)
       }
     }
 
@@ -314,7 +360,7 @@ object ChromosomeImpl {
       corrCfg.numMatches    = 1
       corrCfg.numPerFile    = 1
       corrCfg.maxBoost      = 8f
-      corrCfg.normalize     = false   // ok?
+      corrCfg.normalize     = normalize
       corrCfg.minPunch      = numFrames
       corrCfg.maxPunch      = numFrames
       corrCfg.punchIn       = FeatureCorrelation.Punch(span = Span(0L, numFrames), temporalWeight = 0.5f)
@@ -332,7 +378,7 @@ object ChromosomeImpl {
 
     val simFut = simFut0.recover {
       case Bounce.ServerFailed(_) => 0.0
-      case Mutagen.FeatureExtractionFailed(_) =>
+      case FeatureExtractionFailed(_) =>
         if (DEBUG) println("Gen-extr failed!")
         0.0
 

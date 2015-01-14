@@ -21,10 +21,10 @@ import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
 import de.sciss.mutagen.MutagenSystem
 import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
-import de.sciss.synth.{ServerConnection, SynthDef, ugen, Server, Synth}
+import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
 import de.sciss.synth.swing.ServerStatusPanel
 
-import scala.swing.{Button, Label, Swing}
+import scala.swing.{Button, Swing}
 import Swing._
 import scala.util.Try
 
@@ -47,7 +47,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
     def stopSynth(): Unit = synthOpt.foreach { synth =>
       synthOpt = None
-      synth.free()
+      if (synth.server.isRunning) synth.free()
     }
     def playSynth(): Unit = {
       stopSynth()
@@ -76,6 +76,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
     val butKill = Button("Kill") {
       import scala.sys.process._
+      Try(Server.default).toOption.foreach(_.dispose())
       "killall scsynth".!
     }
 
