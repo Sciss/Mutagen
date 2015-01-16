@@ -73,12 +73,13 @@ object EvaluationImpl {
     }
   }
 
-  def apply(c: Chromosome, eval: Evaluation, g: MutagenSystem.Global): Double = {
+  def apply(c: Chromosome, eval: Evaluation, g: Global): Double = {
     val key     = g.input
     val futMeta = cache.acquire(key)
     val futEval = futMeta.flatMap { v =>
       val inputExtr = v.meta
       val inputSpec = blocking(AudioFile.readSpec(key))
+      implicit val global = g
       c.evaluate(eval, inputSpec, inputExtr)
     }
     val fitness = Await.result(futEval, Duration.Inf).fitness

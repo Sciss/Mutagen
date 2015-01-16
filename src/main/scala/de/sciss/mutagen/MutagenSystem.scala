@@ -16,7 +16,7 @@ package de.sciss.mutagen
 import de.sciss.file._
 import de.sciss.guiflitz.{Cell, AutoView}
 import de.sciss.model.Model
-import de.sciss.muta.{SelectionNumber, BreedingFunction, SelectionPercent, SelectionSize, Vec}
+import de.sciss.muta.{SelectionPercent, SelectionSize}
 import de.sciss.mutagen.gui.PathField
 import de.sciss.play.json.AutoFormat
 import de.sciss.synth.io.AudioFile
@@ -56,23 +56,7 @@ object MutagenSystem extends muta.System {
   }
   type Selection = Selection.type
 
-  object Breeding extends muta.Breeding[Chromosome, Global] with muta.impl.BreedingImpl[Chromosome, Global] {
-    //    def apply(sel: Vec[(Chromosome, Double, Boolean)], g: Global, rnd: Random): Vec[Chromosome] = {
-    //      Vec.tabulate(g.population)(i => sel(i % sel.size)._1)
-    //    }
-
-    val elitism        : SelectionSize    = SelectionNumber (4)  // XXX TODO
-    val crossoverWeight: SelectionPercent = SelectionPercent(0)  // XXX TODO
-
-    object crossover extends BreedingFunction[Chromosome, Global] {
-      def apply(genome: Vec[Chromosome], sz: Int, global: Global, rnd: Random): Vec[Chromosome] = {
-        ???
-      }
-    }
-
-    def mutation: BreedingFunction[Chromosome, Global] = impl.MutationImpl
-  }
-  type Breeding = Breeding.type
+  type Breeding = mutagen.Breeding
 
   // ---- serialization ----
 
@@ -91,7 +75,7 @@ object MutagenSystem extends muta.System {
 
   val evaluationFormat: Format[Evaluation] = AutoFormat[Evaluation]
   val selectionFormat : Format[Selection ] = new SingletonFormat(Selection )
-  val breedingFormat  : Format[Breeding  ] = new SingletonFormat(Breeding  )
+  val breedingFormat  : Format[Breeding  ] = AutoFormat[Breeding]
 
   // ---- instances ----
 
@@ -99,7 +83,7 @@ object MutagenSystem extends muta.System {
 
   def defaultEvaluation: Evaluation = Evaluation()
   def defaultSelection : Selection  = Selection
-  def defaultBreeding  : Breeding   = Breeding
+  def defaultBreeding  : Breeding   = Breeding()
 
   // ---- views ----
 

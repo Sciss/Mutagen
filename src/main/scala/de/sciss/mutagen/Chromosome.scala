@@ -18,7 +18,6 @@ import de.sciss.synth.io.AudioFileSpec
 import de.sciss.synth.{GE, SynthGraph, UGenSpec}
 import de.sciss.topology.Topology
 
-import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.concurrent.{ExecutionContext, Future}
 
 object Vertex {
@@ -80,7 +79,7 @@ class Chromosome(val top: Top, val seed: Long) {
   lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false)
 
   def evaluate(eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
-              (implicit exec: ExecutionContext): Future[Evaluated] =
+              (implicit exec: ExecutionContext, global: Global): Future[Evaluated] =
     impl.ChromosomeImpl.evaluate(this, eval, inputSpec, inputExtr)
 
   private lazy val numVertices  = top.vertices.size

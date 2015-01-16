@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import de.sciss.file._
 import de.sciss.lucre.synth.InMemory
 import de.sciss.mutagen.Util._
+import de.sciss.numbers
 import de.sciss.span.Span
 import de.sciss.strugatzki.{Strugatzki, FeatureCorrelation, FeatureExtraction}
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
@@ -174,6 +175,12 @@ object ChromosomeImpl {
     loopVertex(findDef, t1)
   }
 
+  def mkUGen()(implicit random: Random): Vertex.UGen =  {
+    val spec    = choose(ugens)
+    val v       = Vertex.UGen(spec)
+    v
+  }
+
   def addVertex(pred: Top)(implicit random: Random, global: Global): Top = {
     import global.constProb
     val next: Top = if (coin(constProb)) {
@@ -181,9 +188,8 @@ object ChromosomeImpl {
       pred.addVertex(v)
 
     } else {
-      val spec    = choose(ugens)
-      val v       = Vertex.UGen(spec)
-      val t1      = pred.addVertex(v)
+      val v   = mkUGen()
+      val t1  = pred.addVertex(v)
       completeUGenInputs(t1, v)
     }
     next
@@ -266,6 +272,7 @@ object ChromosomeImpl {
         val isOk  = CheckBadValues.ar(sig1, post = 0) sig_== 0
         val sig2  = Gate.ar(sig1, isOk)
         val sig   = Limiter.ar(LeakDC.ar(sig2))
+        RandSeed.ir()
         Out.ar(0, sig)
       }
     }
@@ -298,7 +305,7 @@ object ChromosomeImpl {
   )
 
   def evaluate(c: Chromosome, eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
-              (implicit exec: ExecutionContext): Future[Evaluated] = {
+              (implicit exec: ExecutionContext, global: Global): Future[Evaluated] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
     val exp = ExprImplicits[S]
@@ -319,6 +326,7 @@ object ChromosomeImpl {
     bncCfg.server.nrtOutputPath     = audioF.path
     bncCfg.server.inputBusChannels  = 0
     bncCfg.server.outputBusChannels = 1
+    bncCfg.server.blockSize         = 64  // keep it compatible to real-time
     bncCfg.server.sampleRate        = inputSpec.sampleRate.toInt
     // bc.init : (S#Tx, Server) => Unit
     bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
@@ -378,7 +386,10 @@ object ChromosomeImpl {
 
     val simFut0 = corr.map { matches =>
       // assert(matches.size == 1)
-      val sim0 = matches.headOption.map(_.sim).getOrElse(0f)
+      val sim0 = matches.headOption.map { m =>
+        if (DEBUG) println(m)
+        m.sim
+      } .getOrElse(0f)
       val sim  = if (sim0.isNaN || sim0.isInfinite) 0.0 else sim0.toDouble
       sim
     }
@@ -395,7 +406,13 @@ object ChromosomeImpl {
         0.0    // we aborted the process after 4 seconds
     }
 
-    simFut.map(new Evaluated(c, _))
+    simFut.map { sim0 =>
+      import numbers.Implicits._
+      val pen = eval.vertexPenalty
+      val sim = if (pen <= 0) sim0 else
+        sim0 - c.top.vertices.size.linlin(global.minNumVertices, global.maxNumVertices, 0, pen)
+      new Evaluated(c, sim)
+    }
   }
 
   private case class StringRep(lhs: String, rhs: String) {
@@ -458,8 +475,12 @@ object ChromosomeImpl {
                 val rate = rates.set.max
                 rate.methodName
             }
-            val consName = if (consName0 == "apply") "" else s".$consName0"
-            ins.mkString(s"${u.info.name}$consName(", ", ", ")")
+            val consName  = if (consName0 == "apply") "" else s".$consName0"
+            val nameCons  = s"${u.info.name}$consName"
+            if (ins.isEmpty && consName.nonEmpty)   // e.g. SampleRate.ir
+              nameCons
+            else
+              ins.mkString(s"$nameCons(", ", ", ")")
 
             // u.instantiate(ins)
         }
@@ -480,11 +501,16 @@ object ChromosomeImpl {
     val verticesS = vertices.map(map(_).toString).reverse.mkString("\n")
     val mixS      = rootsSym.toList match {
       case Nil => ""
-      case single :: Nil => s"$single\n"
-      case multiple =>
-        val rootsS = multiple.mkString("val roots = Vector(", ", ", ")")
-        s"$rootsS\nval sig = Mix(roots)\nLimiter.ar(LeakDC.ar(sig))\n"
+      case nonEmpty =>
+        val mixS0 = nonEmpty match {
+          case single :: Nil => s"val sig = $single"
+          case multiple =>
+            val rootsS = multiple.mkString("val roots = Vector(", ", ", ")")
+            s"$rootsS\nval sig = Mix(roots)"
+
+        }
+        s"$mixS0\nLimiter.ar(LeakDC.ar(sig))\n"
     }
-    s"$verticesS\n$mixS"
+    s"$verticesS\nRandSeed.ir()\n$mixS"
   }
 }

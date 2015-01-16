@@ -14,7 +14,7 @@ homepage           := Some(url("https://github.com/Sciss/" + name.value))
 
 licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
-lazy val soundProcessesVersion  = "2.12.0"
+lazy val soundProcessesVersion  = "2.13.0-SNAPSHOT"
 
 lazy val ugensVersion           = "1.13.1-SNAPSHOT"
 

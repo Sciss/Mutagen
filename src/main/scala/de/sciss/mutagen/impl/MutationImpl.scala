@@ -17,27 +17,33 @@ package impl
 import de.sciss.muta.BreedingFunction
 import de.sciss.mutagen.MutagenSystem.Global
 
-import scala.annotation.switch
+import scala.annotation.{tailrec, switch}
 import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.util.Random
 
-object MutationImpl extends BreedingFunction[Chromosome, Global] {
+class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Global] {
   def apply(genome: Vec[Chromosome], sz: Int, glob: Global, rnd: Random): Vec[Chromosome] = {
-    var res = Vector.empty[Chromosome]
     implicit val random = rnd
     implicit val global = glob
-    while (res.size < sz) {
-      val picked = genome(res.size % genome.size)
-      res = (rnd.nextInt(2): @switch) match {
-        case 0 => addVertex   (picked).fold(res)(res :+ _)
-        case 1 => removeVertex(picked).fold(res)(res :+ _)
-        //        case 2 => addEdge()
-        //        case 3 => removeEdge()
-        //        case 4 => changeEdge()
-        //        case 5 => changeConstant()
+
+    @tailrec def loop(iter: Int, pred: Vec[Chromosome]): Vec[Chromosome] = if (iter >= mutationIter) pred else {
+      var res = Vector.empty[Chromosome]
+      while (res.size < sz) {
+        val picked = genome(res.size % genome.size)
+        res = (rnd.nextInt(3): @switch) match {
+          case 0 => addVertex   (picked).fold(res)(res :+ _)
+          case 1 => removeVertex(picked).fold(res)(res :+ _)
+          case 2 => res :+ changeVertex(picked)
+          //        case 2 => addEdge()
+          //        case 3 => removeEdge()
+          //        case 4 => changeEdge()
+          //        case 5 => changeConstant()
+        }
       }
+      loop(iter + 1, res)
     }
-    res
+
+    loop(0, genome)
   }
 
   private def addVertex(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
@@ -70,11 +76,9 @@ object MutationImpl extends BreedingFunction[Chromosome, Global] {
     if (numVertices <= global.minNumVertices) None else {
       val idx     = random.nextInt(numVertices)
       val v       = vertices(idx)
-      val targets = top.edges.collect {
-        case e @ Edge(vi: Vertex.UGen, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
-      }
-      val top1 = top.removeVertex(v)
-      val top3 = (top1 /: targets) { (top2, e) =>
+      val targets = getTargets(top, v)
+      val top1    = top.removeVertex(v)
+      val top3    = (top1 /: targets) { (top2, e) =>
         val x = top2.removeEdge(e)
         assert(x ne top2)
         x
@@ -88,13 +92,59 @@ object MutationImpl extends BreedingFunction[Chromosome, Global] {
     }
   }
 
-  private def changeConstant() = ???
+  private def getTargets(top: Top, v: Vertex): Set[Edge] =
+    top.edges.collect {
+      case e @ Edge(_, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
+    }
 
-  private def addEdge() = ???
+  private def changeVertex(pred: Chromosome)(implicit random: Random, global: Global): Chromosome = {
+    val top         = pred.top
+    val vertices    = top.vertices
+    val numVertices = vertices.size
 
-  private def removeEdge() = ???
+    val idx     = random.nextInt(numVertices)
+    val vOld    = vertices(idx)
+    val outlet  = getTargets(top, vOld)
+    val inlets  = top.edgeMap.getOrElse(vOld, Set.empty)
+    val top1    = (top  /: outlet)(_ removeEdge _)
+    val top2    = (top1 /: inlets)(_ removeEdge _)
+    val top3    = top2.removeVertex(vOld)
 
-  private def changeEdge() = ???
+    val vNew    = vOld match {
+      case Vertex.Constant(f) =>
+        if (Util.coin())
+          ChromosomeImpl.mkConstant()   // completely random
+        else
+          Vertex.Constant(f * Util.exprand(0.9, 1.0/0.9).toFloat) // gradual change
+      case _ =>
+        ChromosomeImpl.mkUGen()
+    }
+
+    val oldInletNames: Vec[String] = vOld match {
+      case Vertex.UGen(info) => info.inputs.map(_.arg)
+      case _ => Vec.empty
+    }
+    val newInletNames: Vec[String] = vNew match {
+      case Vertex.UGen(info) => info.inputs.map(_.arg)
+      case _ => Vec.empty
+    }
+
+    val top4  = top3.addVertex(vNew)
+    val top5  = (top4 /: outlet.map(_.copy(targetVertex = vNew)))((t, e) => t.addEdge(e).get._1)
+
+    // just as many as possible, leaving tail inlets empty
+    val newInlets = inlets.collect {
+      case e if oldInletNames.indexOf(e.inlet) < newInletNames.size =>
+        e.copy(sourceVertex = vNew, inlet = newInletNames(oldInletNames.indexOf(e.inlet)))
+    }
+
+    val top6  = (top5 /: newInlets)((t, e) => t.addEdge(e).get._1)
+    val top7  = vNew match {
+      case vu: Vertex.UGen => ChromosomeImpl.completeUGenInputs(top6, vu)
+      case _ => top6
+    }
+    new Chromosome(top7, seed = random.nextLong())
+  }
 
   /*
     ways to mutate:
