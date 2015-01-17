@@ -1,0 +1,3 @@
+- inlets for which `init = true` should only be plugged to constants
+- inlets for which `rate = ugen` should never be plugged to constants
+- should handle variadic inputs
