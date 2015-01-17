@@ -44,6 +44,12 @@ libraryDependencies ++= Seq(
 
 scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")
 
+// ---- assembly ----
+
+target  in assembly := baseDirectory.value
+
+jarName in assembly := s"${name.value}.jar"
+
 // ---- publishing ----
 
 publishMavenStyle := true

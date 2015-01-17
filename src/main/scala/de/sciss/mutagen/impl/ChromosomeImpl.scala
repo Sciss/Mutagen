@@ -11,8 +11,8 @@ import de.sciss.span.Span
 import de.sciss.strugatzki.{Strugatzki, FeatureCorrelation, FeatureExtraction}
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
 import de.sciss.synth.proc.{Timeline, Bounce, WorkspaceHandle, Obj, Proc, ExprImplicits}
-import de.sciss.synth.ugen.SampleRate
-import de.sciss.synth.{SynthGraph, ugen, GE, demand, UndefinedRate, UGenSpec}
+import de.sciss.synth.ugen.{BinaryOpUGen, SampleRate}
+import de.sciss.synth.{audio, SynthGraph, ugen, GE, demand, UndefinedRate, UGenSpec}
 import de.sciss.topology.Topology
 import play.api.libs.json
 import play.api.libs.json.{JsArray, JsObject, JsError, JsSuccess, JsString, JsNumber, JsResult, JsValue}
@@ -42,13 +42,37 @@ object ChromosomeImpl {
     "NumAudioBuses", "NumBuffers", "NumControlBuses", "NumInputBuses", "NumOutputBuses", "NumRunningSynths",
     "Free", "FreeSelf", "FreeSelfWhenDone", "PauseSelf", "PauseSelfWhenDone",
     "ClearBuf", "LocalBuf",
-    "RandID", "RandSeed"
+    "RandID", "RandSeed",
+    "Rand", "ExpRand", "IRand",
+    /* "A2K", */ "K2A" /* , "DC" */
   )
 
-  private val ugens: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
+  private val ugens0: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
     spec.attr.intersect(NoNoAttr).isEmpty && !RemoveUGens.contains(spec.name) && spec.outputs.nonEmpty &&
       !spec.rates.set.contains(demand)
   } .toIndexedSeq
+
+  private val binUGens: Vec[UGenSpec] = {
+    import BinaryOpUGen._
+    val ops = Vector(Plus, Minus, Times, Div, Mod, Eq, Neq, Lt, Gt, Leq, Geq, Min, Max, BitAnd, BitOr, BitXor,
+      RoundTo, RoundUpTo, Trunc, Atan2, Hypot, Hypotx, Pow, Ring1, Ring2, Ring3, Ring4, Difsqr, Sumsqr, Sqrsum,
+      Sqrdif, Absdif, Thresh, Amclip, Scaleneg, Clip2, Excess, Fold2, Wrap2
+    )
+    ops.map { op =>
+      val name  = s"Bin_${op.id}"
+      val rates = UGenSpec.Rates.Set(Set(audio))
+      val arg1  = UGenSpec.Argument(name = "a", tpe = UGenSpec.ArgumentType.GE(UGenSpec.SignalShape.Generic),
+        defaults = Map.empty, rates = Map.empty)
+      val arg2  = arg1.copy(name = "b")
+      val in1   = UGenSpec.Input(arg = "a", tpe = UGenSpec.Input.Single)
+      val in2   = in1.copy(arg = "b")
+      val out   = UGenSpec.Output(name = None, shape = UGenSpec.SignalShape.Generic, variadic = None)
+      UGenSpec.apply(name = name, attr = Set.empty, rates = rates, args = Vec(arg1, arg2),
+        inputs = Vec(in1, in2), outputs = Vec(out), doc = None)
+    }
+  }
+
+  private val ugens: Vec[UGenSpec] = ugens0 ++ binUGens
 
   private implicit object VertexFormat extends json.Format[Vertex] {
     def reads(json: JsValue): JsResult[Vertex] = {
@@ -206,7 +230,7 @@ object ChromosomeImpl {
     new Chromosome(t0, seed = random.nextLong())
   }
 
-  def mkSynthGraph(c: Chromosome, mono: Boolean): SynthGraph = {
+  def mkSynthGraph(c: Chromosome, mono: Boolean, removeNaNs: Boolean): SynthGraph = {
     import Util._
     import c.{seed, top}
     implicit val rnd = new Random(seed)
@@ -260,19 +284,22 @@ object ChromosomeImpl {
     }
 
     SynthGraph {
+      import de.sciss.synth.ugen._
+      RandSeed.ir()
       val map   = loop(top.vertices, Map.empty)
       val ugens = top.vertices.collect {
         case ugen: Vertex.UGen => ugen
       }
       if (ugens.nonEmpty) {
-        import de.sciss.synth.ugen._
         val roots = getRoots(top)
         val sig0: GE = if (roots.isEmpty) map(choose(ugens)) else Mix(roots.map(map.apply))
-        val sig1  = if (mono) Mix.mono(sig0) else sig0
-        val isOk  = CheckBadValues.ar(sig1, post = 0) sig_== 0
-        val sig2  = Gate.ar(sig1, isOk)
-        val sig   = Limiter.ar(LeakDC.ar(sig2))
-        RandSeed.ir()
+        val sig1  = /* if (mono) */ Mix.mono(sig0) /* else sig0 */
+        val sig2  = if (!removeNaNs) sig1 else {
+            val isOk = CheckBadValues.ar(sig1, post = 0) sig_== 0
+            Gate.ar(sig1, isOk)
+          }
+        val sig3  = Limiter.ar(LeakDC.ar(sig2))
+        val sig   = if (mono) sig3 else Pan2.ar(sig3) // SplayAz.ar(numChannels = 2, in = sig3)
         Out.ar(0, sig)
       }
     }
@@ -313,7 +340,7 @@ object ChromosomeImpl {
 
     val objH = cursor.step { implicit tx =>
       val proc      = Proc[S]
-      proc.graph()  = mkSynthGraph(c, mono = true) // c.graph
+      proc.graph()  = mkSynthGraph(c, mono = true, removeNaNs = false) // c.graph
       val procObj   = Obj(Proc.Elem(proc))
       tx.newHandle(procObj)
     }
@@ -335,6 +362,36 @@ object ChromosomeImpl {
 
     val bnc = Future {
       Await.result(bnc0, Duration(4.0, TimeUnit.SECONDS))
+      // XXX TODO -- would be faster if we could use a Poll during
+      // the bounce and instruct the bounce proc to immediately terminate
+      // when seeing a particular message in the console?
+      blocking {
+        val af = AudioFile.openRead(audioF)
+        try {
+          val b = af.buffer(512)
+          var i = 0L
+          while (i < af.numFrames) {
+            val len = math.min(12, af.numFrames - i).toInt
+            af.read(b, 0, len)
+            var ch = 0
+            while (ch < af.numChannels) {
+              val bc = b(ch)
+              var j = 0
+              while (j < len) {
+                if (bc(j).isNaN || bc(j).isInfinite) {
+                  if (DEBUG) println("Detected NaNs")
+                  throw FeatureExtractionFailed(null)
+                }
+                j += 1
+              }
+              ch += 1
+            }
+            i += len
+          }
+        } finally {
+          af.cleanUp()
+        }
+      }
     }
     //    bnc.onFailure {
     //      case t => println(s"bnc failed with $t")
@@ -343,17 +400,18 @@ object ChromosomeImpl {
     val genFolder           = File.createTemp(directory = true)
     val genExtr             = genFolder / "gen_feat.xml"
 
+    val normF   = genFolder / Strugatzki.NormalizeName
     if (eval.normalize) blocking {
-      val normF   = genFolder / Strugatzki.NormalizeName
       val normAF  = AudioFile.openWrite(normF, AudioFileSpec(numChannels = featNorms.length, sampleRate = 44100))
       normAF.write(featNorms)
       normAF.close()
     }
+    val featF   = File.createTemp(suffix = ".aif")
 
     val ex = bnc.flatMap { _ =>
       val exCfg             = FeatureExtraction.Config()
       exCfg.audioInput      = audioF
-      exCfg.featureOutput   = File.createTemp(suffix = ".aif")
+      exCfg.featureOutput   = featF
       exCfg.metaOutput      = Some(genExtr)
       val _ex               = FeatureExtraction(exCfg)
       _ex.start()
@@ -382,6 +440,11 @@ object ChromosomeImpl {
       val _corr             = FeatureCorrelation(corrCfg)
       _corr.start()
       _corr
+    }
+
+    corr.onComplete { case _ =>
+      if (eval.normalize) normF.delete()
+      featF.delete()
     }
 
     val simFut0 = corr.map { matches =>
@@ -467,22 +530,8 @@ object ChromosomeImpl {
               res
             }
 
-            val rates = u.info.rates
-            val consName0 = rates.method match {
-              case UGenSpec.RateMethod.Alias (name) => name
-              case UGenSpec.RateMethod.Custom(name) => name
-              case UGenSpec.RateMethod.Default =>
-                val rate = rates.set.max
-                rate.methodName
-            }
-            val consName  = if (consName0 == "apply") "" else s".$consName0"
-            val nameCons  = s"${u.info.name}$consName"
-            if (ins.isEmpty && consName.nonEmpty)   // e.g. SampleRate.ir
-              nameCons
-            else
-              ins.mkString(s"$nameCons(", ", ", ")")
-
-            // u.instantiate(ins)
+            val name = u.asCompileString(ins)
+            if (name.charAt(0) == '(' && name.charAt(name.length - 1) == ')') name.substring(1, name.length - 1) else name
         }
 
         val valName = s"v${numVertices - rem.size}"
@@ -511,6 +560,6 @@ object ChromosomeImpl {
         }
         s"$mixS0\nLimiter.ar(LeakDC.ar(sig))\n"
     }
-    s"$verticesS\nRandSeed.ir()\n$mixS"
+    s"RandSeed.ir()\n$verticesS\n$mixS"
   }
 }

@@ -30,10 +30,12 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       var res = Vector.empty[Chromosome]
       while (res.size < sz) {
         val picked = genome(res.size % genome.size)
-        res = (rnd.nextInt(3): @switch) match {
+        res = (rnd.nextInt(5): @switch) match {
           case 0 => addVertex   (picked).fold(res)(res :+ _)
           case 1 => removeVertex(picked).fold(res)(res :+ _)
           case 2 => res :+ changeVertex(picked)
+          case 3 => changeEdge  (picked).fold(res)(res :+ _)
+          case 4 => swapEdge    (picked).fold(res)(res :+ _)
           //        case 2 => addEdge()
           //        case 3 => removeEdge()
           //        case 4 => changeEdge()
@@ -52,6 +54,50 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       val succ = ChromosomeImpl.addVertex(top)
       val res  = new Chromosome(succ, seed = random.nextLong())
       checkComplete(succ, s"addVertex()")
+      Some(res)
+    }
+  }
+
+  private def changeEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val vertices    = top.vertices
+
+    val candidates  = vertices.collect {
+      case v @ Vertex.UGen(spec) if spec.inputs.nonEmpty => v
+    }
+
+    if (candidates.isEmpty) None else {
+      val v     = Util.choose(candidates)
+      val edges = top.edgeMap.getOrElse(v, Set.empty)
+      val top1  = if (edges.isEmpty) top else top.removeEdge(Util.choose(edges))
+      val top2  = ChromosomeImpl.completeUGenInputs(top1, v)
+      if (top2 == top) None else {
+        val res = new Chromosome(top2, seed = random.nextLong())
+        Some(res)
+      }
+    }
+  }
+
+  private def swapEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val vertices    = top.vertices
+
+    val candidates  = vertices.collect {
+      case v @ Vertex.UGen(spec) if top.edgeMap.get(v).exists(_.size >= 2) => v
+    }
+
+    if (candidates.isEmpty) None else {
+      val v     = Util.choose(candidates)
+      val edges = top.edgeMap.getOrElse(v, Set.empty)
+      val e1    = Util.choose(edges)
+      val e2    = Util.choose(edges - e1)
+      val top1  = top .removeEdge(e1)
+      val top2  = top1.removeEdge(e2)
+      val e1New = e1.copy(targetVertex = e2.targetVertex)
+      val e2New = e2.copy(targetVertex = e1.targetVertex)
+      val top3  = top2.addEdge(e1New).get._1
+      val top4  = top3.addEdge(e2New).get._1
+      val res   = new Chromosome(top4, seed = random.nextLong())
       Some(res)
     }
   }

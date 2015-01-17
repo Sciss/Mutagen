@@ -15,6 +15,7 @@ package de.sciss.mutagen
 
 import de.sciss.file.File
 import de.sciss.synth.io.AudioFileSpec
+import de.sciss.synth.ugen.BinaryOpUGen
 import de.sciss.synth.{GE, SynthGraph, UGenSpec}
 import de.sciss.topology.Topology
 
@@ -26,7 +27,46 @@ object Vertex {
     def unapply(v: UGen): Option[UGenSpec] = Some(v.info)
 
     private final class Impl(val info: UGenSpec) extends UGen {
-      def instantiate(ins: Vec[(AnyRef, Class[_])]): GE = {
+      private def isBinOp: Boolean = info.name.startsWith("Bin_")
+
+      def instantiate(ins: Vec[(AnyRef, Class[_])]): GE =
+        if (isBinOp) mkBinOpUGen(ins) else mkRegularUGen(ins)
+
+      def asCompileString(ins: Vec[String]): String =
+        if (isBinOp) mkBinOpString(ins) else mkRegularString(ins)
+
+      private def mkBinOpString(ins: Vec[String]): String = {
+        val id = info.name.substring(4).toInt
+        val op = BinaryOpUGen.Op(id)
+        val n  = op.name
+        val nu = s"${n.substring(0, 1).toLowerCase}${n.substring(1)}"
+        s"(${ins(0)} $nu ${ins(1)})"
+      }
+
+      private def mkRegularString(ins: Vec[String]): String = {
+        val rates = info.rates
+        val consName0 = rates.method match {
+          case UGenSpec.RateMethod.Alias (name) => name
+          case UGenSpec.RateMethod.Custom(name) => name
+          case UGenSpec.RateMethod.Default =>
+            val rate = rates.set.max
+            rate.methodName
+        }
+        val consName  = if (consName0 == "apply") "" else s".$consName0"
+        val nameCons  = s"${info.name}$consName"
+        if (ins.isEmpty && consName.nonEmpty)   // e.g. SampleRate.ir
+          nameCons
+        else
+          ins.mkString(s"$nameCons(", ", ", ")")
+      }
+
+      private def mkBinOpUGen(ins: Vec[(AnyRef, Class[_])]): GE = {
+        val id = info.name.substring(4).toInt
+        val op = BinaryOpUGen.Op(id)
+        op.make(ins(0)._1.asInstanceOf[GE], ins(1)._1.asInstanceOf[GE])
+      }
+
+      private def mkRegularUGen(ins: Vec[(AnyRef, Class[_])]): GE = {
         val consName = info.rates.method match {
           case UGenSpec.RateMethod.Alias (name) => name
           case UGenSpec.RateMethod.Custom(name) => name
@@ -53,6 +93,8 @@ object Vertex {
     override def toString = s"${info.name}@${hashCode().toHexString}"
 
     def instantiate(ins: Vec[(AnyRef, Class[_])]): GE
+
+    def asCompileString(ins: Vec[String]): String
   }
   //  class UGen(val info: UGenSpec) extends Vertex {
   //    override def toString = s"${info.name}@${hashCode().toHexString}"
@@ -76,7 +118,7 @@ object Chromosome {
   def apply()(implicit random: util.Random, global: Global): Chromosome = impl.ChromosomeImpl.mkIndividual()
 }
 class Chromosome(val top: Top, val seed: Long) {
-  lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false)
+  lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false, removeNaNs = true)
 
   def evaluate(eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
               (implicit exec: ExecutionContext, global: Global): Future[Evaluated] =

@@ -14,6 +14,8 @@
 package de.sciss.mutagen
 package impl
 
+import java.util.concurrent.TimeUnit
+
 import de.sciss.file._
 import de.sciss.filecache
 import de.sciss.filecache.{MutableConsumer, MutableProducer}
@@ -82,7 +84,7 @@ object EvaluationImpl {
       implicit val global = g
       c.evaluate(eval, inputSpec, inputExtr)
     }
-    val fitness = Await.result(futEval, Duration.Inf).fitness
+    val fitness = Await.result(futEval, Duration(12, TimeUnit.SECONDS) /* Duration.Inf */).fitness
     cache.release(key)
     fitness
   }
