@@ -84,7 +84,7 @@ object EvaluationImpl {
       implicit val global = g
       c.evaluate(eval, inputSpec, inputExtr)
     }
-    val fitness = Await.result(futEval, Duration(12, TimeUnit.SECONDS) /* Duration.Inf */).fitness
+    val fitness = Await.result(futEval, Duration(24, TimeUnit.SECONDS) /* Duration.Inf */).fitness
     cache.release(key)
     fitness
   }

@@ -11,22 +11,28 @@
  *  contact@sciss.de
  */
 
-package de.sciss.mutagen.gui
+package de.sciss.mutagen
+package gui
+
+import java.awt.Color
 
 import com.alee.laf.WebLookAndFeel
+import com.alee.laf.checkbox.WebCheckBoxStyle
+import com.alee.laf.progressbar.WebProgressBarStyle
 import de.sciss.audiowidgets.Transport
 import de.sciss.desktop.{Window, WindowHandler}
 import de.sciss.desktop.impl.WindowImpl
+import de.sciss.file._
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
-import de.sciss.mutagen.MutagenSystem
 import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
 import de.sciss.synth.swing.ServerStatusPanel
 
+import scala.concurrent.ExecutionContext
 import scala.swing.{Button, Swing}
 import Swing._
-import scala.util.Try
+import scala.util.{Success, Failure, Try}
 
 object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useNimbus         = false
@@ -35,9 +41,45 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
   protected override def init(): Unit = {
     // println(MutagenSystem.chromosomeClassTag)
     WebLookAndFeel.install()
+    // some custom web-laf settings
+    WebCheckBoxStyle   .animated            = false
+    WebProgressBarStyle.progressTopColor    = Color.lightGray
+    WebProgressBarStyle.progressBottomColor = Color.gray
+    // XXX TODO: how to really turn of animation?
+    WebProgressBarStyle.highlightWhite      = new Color(255, 255, 255, 0)
+    WebProgressBarStyle.highlightDarkWhite  = new Color(255, 255, 255, 0)
+
     super.init()
 
     new MainFrame
+
+    args.toList match {
+      case "--auto" :: path :: _ =>
+        val f = file(path)
+        openDocument(f).foreach { fr =>
+          import ExecutionContext.Implicits.global
+          def iter(): Unit = {
+            fr.iterate(n = 50, quiet = true).onComplete {
+              case Success(_) =>
+                println("Saving...")
+                fr.save(f).foreach { _ =>
+                  iter()
+                }
+
+              case Failure(ex) =>
+                ex.printStackTrace()
+                import sys.process._
+                Console.err.println("Restarting...")
+                Seq("/bin/sh", "mutagen-auto").run()
+                sys.exit()
+            }
+          }
+
+          iter()
+        }
+
+      case _ =>
+    }
   }
 
   override protected def configureDocumentFrame(frame: DocumentFrame[MutagenSystem.type]): Unit = {
@@ -87,12 +129,17 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       }
     }
 
+    val butStats = Button("Stats") {
+      impl.MutationImpl.printStats()
+    }
+
     pStatus.bootAction = Some(boot)
     val bs = Transport.makeButtonStrip(Seq(Transport.Stop(stopSynth()), Transport.Play(playSynth())))
     val tp = frame.topPanel.contents
     tp += pStatus
     tp += butKill
     tp += butPrint
+    tp += butStats
     tp += bs
   }
 

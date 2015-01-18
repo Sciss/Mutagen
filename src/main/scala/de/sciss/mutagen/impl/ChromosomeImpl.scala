@@ -444,7 +444,8 @@ object ChromosomeImpl {
 
     corr.onComplete { case _ =>
       if (eval.normalize) normF.delete()
-      featF.delete()
+      featF .delete()
+      audioF.delete()
     }
 
     val simFut0 = corr.map { matches =>

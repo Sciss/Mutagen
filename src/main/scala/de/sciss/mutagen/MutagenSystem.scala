@@ -16,7 +16,6 @@ package de.sciss.mutagen
 import de.sciss.file._
 import de.sciss.guiflitz.{Cell, AutoView}
 import de.sciss.model.Model
-import de.sciss.muta.{SelectionPercent, SelectionSize}
 import de.sciss.mutagen.gui.PathField
 import de.sciss.play.json.AutoFormat
 import de.sciss.synth.io.AudioFile
@@ -26,7 +25,6 @@ import play.api.libs.json.{JsSuccess, JsError, JsString, JsResult, JsValue, Form
 import scala.reflect.{ClassTag, classTag}
 import scala.swing.Label
 import scala.swing.event.ValueChanged
-import scala.util.Random
 
 object MutagenSystem extends muta.System {
   // WARNING: must not be `implicit` to avoid false recursion
@@ -34,27 +32,15 @@ object MutagenSystem extends muta.System {
 
   // ---- settings ----
 
-  type Global = mutagen.Global
+  type Global     = mutagen.Global
 
   // ---- types ----
 
   type Chromosome = mutagen.Chromosome
-
-  case class Generation(global: Global = Global()) extends muta.Generation[Chromosome, Global] {
-    def size: Int = global.population
-    def seed: Int = global.seed
-
-    def apply(random: Random): Chromosome = Chromosome()(random, global)
-  }
-
+  type Generation = mutagen.Generation
   type Evaluation = mutagen.Evaluation
 
-  object Selection extends muta.Selection[Chromosome] with muta.impl.SelectionRouletteImpl[Chromosome] {
-
-    // def apply(eval: Vec[(Chromosome, Double)], rnd: Random): Vec[Chromosome] = ...
-    def size: SelectionSize = SelectionPercent(25)
-  }
-  type Selection = Selection.type
+  type Selection  = mutagen.Selection
 
   type Breeding = mutagen.Breeding
 
@@ -74,7 +60,7 @@ object MutagenSystem extends muta.System {
   def generationFormat: Format[Generation] = AutoFormat[Generation]
 
   val evaluationFormat: Format[Evaluation] = AutoFormat[Evaluation]
-  val selectionFormat : Format[Selection ] = new SingletonFormat(Selection )
+  val selectionFormat : Format[Selection ] = AutoFormat[Selection]
   val breedingFormat  : Format[Breeding  ] = AutoFormat[Breeding]
 
   // ---- instances ----
@@ -82,7 +68,7 @@ object MutagenSystem extends muta.System {
   def defaultGeneration: Generation = Generation()
 
   def defaultEvaluation: Evaluation = Evaluation()
-  def defaultSelection : Selection  = Selection
+  def defaultSelection : Selection  = Selection()
   def defaultBreeding  : Breeding   = Breeding()
 
   // ---- views ----

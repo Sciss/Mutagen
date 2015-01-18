@@ -21,7 +21,14 @@ import scala.annotation.{tailrec, switch}
 import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.util.Random
 
+object MutationImpl {
+  private val stats = Array.fill(5)(0)
+
+  def printStats(): Unit = println(stats.mkString(", "))
+}
 class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Global] {
+  import MutationImpl.stats
+
   def apply(genome: Vec[Chromosome], sz: Int, glob: Global, rnd: Random): Vec[Chromosome] = {
     implicit val random = rnd
     implicit val global = glob
@@ -54,64 +61,8 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       val succ = ChromosomeImpl.addVertex(top)
       val res  = new Chromosome(succ, seed = random.nextLong())
       checkComplete(succ, s"addVertex()")
+      stats(0) += 1
       Some(res)
-    }
-  }
-
-  private def changeEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
-    val top         = pred.top
-    val vertices    = top.vertices
-
-    val candidates  = vertices.collect {
-      case v @ Vertex.UGen(spec) if spec.inputs.nonEmpty => v
-    }
-
-    if (candidates.isEmpty) None else {
-      val v     = Util.choose(candidates)
-      val edges = top.edgeMap.getOrElse(v, Set.empty)
-      val top1  = if (edges.isEmpty) top else top.removeEdge(Util.choose(edges))
-      val top2  = ChromosomeImpl.completeUGenInputs(top1, v)
-      if (top2 == top) None else {
-        val res = new Chromosome(top2, seed = random.nextLong())
-        Some(res)
-      }
-    }
-  }
-
-  private def swapEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
-    val top         = pred.top
-    val vertices    = top.vertices
-
-    val candidates  = vertices.collect {
-      case v @ Vertex.UGen(spec) if top.edgeMap.get(v).exists(_.size >= 2) => v
-    }
-
-    if (candidates.isEmpty) None else {
-      val v     = Util.choose(candidates)
-      val edges = top.edgeMap.getOrElse(v, Set.empty)
-      val e1    = Util.choose(edges)
-      val e2    = Util.choose(edges - e1)
-      val top1  = top .removeEdge(e1)
-      val top2  = top1.removeEdge(e2)
-      val e1New = e1.copy(targetVertex = e2.targetVertex)
-      val e2New = e2.copy(targetVertex = e1.targetVertex)
-      val top3  = top2.addEdge(e1New).get._1
-      val top4  = top3.addEdge(e2New).get._1
-      val res   = new Chromosome(top4, seed = random.nextLong())
-      Some(res)
-    }
-  }
-
-  private def checkComplete(succ: Top, message: => String): Unit = {
-    succ.vertices.foreach {
-      case v: Vertex.UGen =>
-        val inc = ChromosomeImpl.findIncompleteUGenInputs(succ, v)
-        if (inc.nonEmpty) {
-          println("MISSING SLOTS:")
-          inc.foreach(println)
-          sys.error(s"UGen is not complete: $v - $message")
-        }
-      case _ =>
     }
   }
 
@@ -134,14 +85,10 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       }
       val res  = new Chromosome(succ, seed = random.nextLong())
       checkComplete(succ, s"removeVertex($v)")
+      stats(1) += 1
       Some(res)
     }
   }
-
-  private def getTargets(top: Top, v: Vertex): Set[Edge] =
-    top.edges.collect {
-      case e @ Edge(_, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
-    }
 
   private def changeVertex(pred: Chromosome)(implicit random: Random, global: Global): Chromosome = {
     val top         = pred.top
@@ -189,8 +136,75 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       case vu: Vertex.UGen => ChromosomeImpl.completeUGenInputs(top6, vu)
       case _ => top6
     }
-    new Chromosome(top7, seed = random.nextLong())
+
+    val res = new Chromosome(top7, seed = random.nextLong())
+    stats(2) += 1
+    res
   }
+
+  private def changeEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val vertices    = top.vertices
+
+    val candidates  = vertices.collect {
+      case v @ Vertex.UGen(spec) if spec.inputs.nonEmpty => v
+    }
+
+    if (candidates.isEmpty) None else {
+      val v     = Util.choose(candidates)
+      val edges = top.edgeMap.getOrElse(v, Set.empty)
+      val top1  = if (edges.isEmpty) top else top.removeEdge(Util.choose(edges))
+      val top2  = ChromosomeImpl.completeUGenInputs(top1, v)
+      if (top2 == top) None else {
+        val res = new Chromosome(top2, seed = random.nextLong())
+        stats(3) += 1
+        Some(res)
+      }
+    }
+  }
+
+  private def swapEdge(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val vertices    = top.vertices
+
+    val candidates  = vertices.collect {
+      case v @ Vertex.UGen(spec) if top.edgeMap.get(v).exists(_.size >= 2) => v
+    }
+
+    if (candidates.isEmpty) None else {
+      val v     = Util.choose(candidates)
+      val edges = top.edgeMap.getOrElse(v, Set.empty)
+      val e1    = Util.choose(edges)
+      val e2    = Util.choose(edges - e1)
+      val top1  = top .removeEdge(e1)
+      val top2  = top1.removeEdge(e2)
+      val e1New = e1.copy(targetVertex = e2.targetVertex)
+      val e2New = e2.copy(targetVertex = e1.targetVertex)
+      val top3  = top2.addEdge(e1New).get._1
+      val top4  = top3.addEdge(e2New).get._1
+      val res   = new Chromosome(top4, seed = random.nextLong())
+      stats(4) += 1
+      Some(res)
+    }
+  }
+
+  private def checkComplete(succ: Top, message: => String): Unit = {
+    succ.vertices.foreach {
+      case v: Vertex.UGen =>
+        val inc = ChromosomeImpl.findIncompleteUGenInputs(succ, v)
+        if (inc.nonEmpty) {
+          println("MISSING SLOTS:")
+          inc.foreach(println)
+          sys.error(s"UGen is not complete: $v - $message")
+        }
+      case _ =>
+    }
+  }
+
+  private def getTargets(top: Top, v: Vertex): Set[Edge] =
+    top.edges.collect {
+      case e @ Edge(_, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
+    }
 
   /*
     ways to mutate:
