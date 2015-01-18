@@ -225,3 +225,24 @@ play {
   Limiter.ar(LeakDC.ar(sig))
 }
 
+play {
+  RandSeed.ir()
+  val v0 = 61.117977
+  val v1 = 0.0017354691
+  val v2 = 40.33182
+  val v3 = Decay2.ar(v1, v2, v0)
+  val v4 = GrayNoise.ar(v3)
+  val v5 = v0 - v4
+  val v6 = BiPanB2.ar(v3, v2, v5, v1)
+  val v7 = LatoocarfianL.ar(v1, v5, v3, v4, v4, v5, v3)
+  val v8 = TWindex.ar(v7, v3, v3)
+  val v9 = v2 clip2 v3
+  val v10 = 10.87044
+  val v11 = GbmanN.ar(v10, v4, v10)
+  val v12 = Ball.ar(v4, v0, v4, v10)
+  val roots = Vector(v12, v11, v9, v8, v6)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
+
+

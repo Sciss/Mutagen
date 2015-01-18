@@ -347,7 +347,7 @@ object ChromosomeImpl {
     import WorkspaceHandle.Implicits._
     val bncCfg                      = Bounce.Config[S]
     bncCfg.group                    = objH :: Nil
-    val audioF                      = File.createTemp(suffix = ".aif")
+    val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
     val numFrames                   = inputSpec.numFrames
     val duration                    = numFrames.toDouble / inputSpec.sampleRate
     bncCfg.server.nrtOutputPath     = audioF.path
@@ -397,7 +397,7 @@ object ChromosomeImpl {
     //      case t => println(s"bnc failed with $t")
     //    }
 
-    val genFolder           = File.createTemp(directory = true)
+    val genFolder           = File.createTemp(prefix = "muta_eval", directory = true)
     val genExtr             = genFolder / "gen_feat.xml"
 
     val normF   = genFolder / Strugatzki.NormalizeName
@@ -406,7 +406,7 @@ object ChromosomeImpl {
       normAF.write(featNorms)
       normAF.close()
     }
-    val featF   = File.createTemp(suffix = ".aif")
+    val featF   = File.createTemp(prefix = "gen_feat", suffix = ".aif")
 
     val ex = bnc.flatMap { _ =>
       val exCfg             = FeatureExtraction.Config()
@@ -419,7 +419,7 @@ object ChromosomeImpl {
       //        case t => println(s"gen-extr failed with $t")
       //      }
       _ex.recover {
-        case cause => FeatureExtractionFailed(cause)
+        case cause => throw FeatureExtractionFailed(cause)
       }
     }
 
@@ -440,12 +440,6 @@ object ChromosomeImpl {
       val _corr             = FeatureCorrelation(corrCfg)
       _corr.start()
       _corr
-    }
-
-    corr.onComplete { case _ =>
-      if (eval.normalize) normF.delete()
-      featF .delete()
-      audioF.delete()
     }
 
     val simFut0 = corr.map { matches =>
@@ -470,13 +464,22 @@ object ChromosomeImpl {
         0.0    // we aborted the process after 4 seconds
     }
 
-    simFut.map { sim0 =>
+    val res = simFut.map { sim0 =>
       import numbers.Implicits._
       val pen = eval.vertexPenalty
       val sim = if (pen <= 0) sim0 else
         sim0 - c.top.vertices.size.linlin(global.minNumVertices, global.maxNumVertices, 0, pen)
       new Evaluated(c, sim)
     }
+
+    res.onComplete { case _ =>
+      if (eval.normalize) normF.delete()
+      featF     .delete()
+      audioF    .delete()
+      genExtr   .delete()
+      genFolder .delete()
+    }
+    res
   }
 
   private case class StringRep(lhs: String, rhs: String) {
