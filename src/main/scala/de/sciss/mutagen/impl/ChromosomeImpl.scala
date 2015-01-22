@@ -7,6 +7,7 @@ import de.sciss.file._
 import de.sciss.lucre.synth.InMemory
 import de.sciss.mutagen.Util._
 import de.sciss.numbers
+import de.sciss.processor.Processor
 import de.sciss.span.Span
 import de.sciss.strugatzki.{Strugatzki, FeatureCorrelation, FeatureExtraction}
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
@@ -331,8 +332,8 @@ object ChromosomeImpl {
     Array(-0.10048226f,0.64655834f)
   )
 
-  def evaluate(c: Chromosome, eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
-              (implicit exec: ExecutionContext, global: Global): Future[Evaluated] = {
+  def bounce(c: Chromosome, audioF: File, inputSpec: AudioFileSpec, inputExtr: File)
+            (implicit exec: ExecutionContext): Processor[Any] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
     val exp = ExprImplicits[S]
@@ -341,13 +342,13 @@ object ChromosomeImpl {
     val objH = cursor.step { implicit tx =>
       val proc      = Proc[S]
       proc.graph()  = mkSynthGraph(c, mono = true, removeNaNs = false) // c.graph
-      val procObj   = Obj(Proc.Elem(proc))
+    val procObj   = Obj(Proc.Elem(proc))
       tx.newHandle(procObj)
     }
     import WorkspaceHandle.Implicits._
     val bncCfg                      = Bounce.Config[S]
     bncCfg.group                    = objH :: Nil
-    val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
+    // val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
     val numFrames                   = inputSpec.numFrames
     val duration                    = numFrames.toDouble / inputSpec.sampleRate
     bncCfg.server.nrtOutputPath     = audioF.path
@@ -359,6 +360,13 @@ object ChromosomeImpl {
     bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
     val bnc0  = Bounce[S, S].apply(bncCfg)
     bnc0.start()
+    bnc0
+  }
+
+  def evaluate(c: Chromosome, eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
+              (implicit exec: ExecutionContext, global: Global): Future[Evaluated] = {
+    val audioF  = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
+    val bnc0    = bounce(c, audioF = audioF, inputSpec = inputSpec, inputExtr = inputExtr)
 
     val bnc = Future {
       Await.result(bnc0, Duration(4.0, TimeUnit.SECONDS))
@@ -422,6 +430,8 @@ object ChromosomeImpl {
         case cause => throw FeatureExtractionFailed(cause)
       }
     }
+
+    val numFrames = inputSpec.numFrames
 
     val corr = ex.flatMap { _ =>
       val corrCfg           = FeatureCorrelation.Config()

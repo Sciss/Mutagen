@@ -13,7 +13,21 @@
 
 package de.sciss.mutagen
 
+import de.sciss.file.File
 import de.sciss.muta
+import de.sciss.synth.io.AudioFileSpec
+
+import scala.concurrent.{ExecutionContext, Future}
+
+object Evaluation {
+  def getInputSpec(c: Chromosome)(implicit global: Global): Future[(File, AudioFileSpec)] =
+    impl.EvaluationImpl.getInputSpec(c)
+
+  def bounce(c: Chromosome, f: File) (implicit exec: ExecutionContext, global: Global): Future[Any] =
+    getInputSpec(c).flatMap { case (inputExtr, inputSpec) =>
+      impl.ChromosomeImpl.bounce(c, audioF = f, inputSpec = inputSpec, inputExtr = inputExtr)
+    }
+}
 
 /** Evaluation settings for the GA.
  *
@@ -29,5 +43,8 @@ case class Evaluation(normalize: Boolean = false, maxBoost: Double = 8.0,
                       temporalWeight: Double = 0.5, vertexPenalty: Double = 0.2)
   extends muta.Evaluation[Chromosome, Global] {
 
-  def apply(c: Chromosome, glob: Global): Double = impl.EvaluationImpl(c, this, glob)
+  def apply(c: Chromosome, glob: Global): Double = {
+    implicit val global = glob
+    impl.EvaluationImpl(c, this)
+  }
 }

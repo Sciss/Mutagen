@@ -21,7 +21,7 @@ import de.sciss.filecache
 import de.sciss.filecache.{MutableConsumer, MutableProducer}
 import de.sciss.serial.{DataOutput, DataInput, ImmutableSerializer}
 import de.sciss.strugatzki.FeatureExtraction
-import de.sciss.synth.io.AudioFile
+import de.sciss.synth.io.{AudioFileSpec, AudioFile}
 
 import scala.concurrent.{Await, Future, blocking}
 import scala.concurrent.duration.Duration
@@ -75,17 +75,23 @@ object EvaluationImpl {
     }
   }
 
-  def apply(c: Chromosome, eval: Evaluation, g: Global): Double = {
-    val key     = g.input
-    val futMeta = cache.acquire(key)
-    val futEval = futMeta.flatMap { v =>
+  def getInputSpec(c: Chromosome)(implicit global: Global): Future[(File, AudioFileSpec)] = {
+    val key       = global.input
+    val futMeta   = cache.acquire(key)
+    val res       = futMeta.map { v =>
       val inputExtr = v.meta
       val inputSpec = blocking(AudioFile.readSpec(key))
-      implicit val global = g
+      (inputExtr, inputSpec)
+    }
+    res.onComplete { case _ => cache.release(key) }
+    res
+  }
+
+  def apply(c: Chromosome, eval: Evaluation)(implicit global: Global): Double = {
+    val futEval = getInputSpec(c).flatMap { case (inputExtr, inputSpec) =>
       c.evaluate(eval, inputSpec, inputExtr)
     }
     val fitness = Await.result(futEval, Duration(24, TimeUnit.SECONDS) /* Duration.Inf */).fitness
-    cache.release(key)
     fitness
   }
 }

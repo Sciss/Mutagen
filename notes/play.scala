@@ -245,4 +245,182 @@ play {
   Limiter.ar(LeakDC.ar(sig))
 }
 
+play {
+  RandSeed.ir()
+  val v0 = 62.67205
+  val v1 = 61.117977
+  val v2 = GrayNoise.ar(v1)
+  val v3 = v2 - v0
+  val v4 = 0.0017354691
+  val v5 = 0.24980739
+  val v6 = PeakFollower.ar(v4, v5)
+  val v7 = PeakFollower.ar(v5, v4)
+  val v8 = 40.33182
+  val v9 = Lag.ar(v3, v8)
+  val v10 = 10.87044
+  val v11 = Ball.ar(v1, v2, v3, v10)
+  val v12 = Normalizer.ar(v9, v8, v11)
+  val v13 = PanB.ar(v4, v11, v1, v8)
+  val v14 = v13 < v7
+  val v15 = Decay2.ar(v4, v8, v1)
+  val v16 = -0.012458533
+  val v17 = v16 roundUpTo v15
+  val v18 = BiPanB2.ar(v8, v15, v3, v4)
+  val v19 = 3.2413244E-4
+  val v20 = PanB2.ar(v3, v2, v19)
+  val v21 = RLPF.ar(v13, v5, v2)
+  val v22 = Decay.ar(v21, v2)
+  val v23 = 767.5149
+  val v24 = TWindex.ar(v23, v22, v15)
+  val v25 = Peak.ar(v6, v11)
+  val roots = Vector(v25, v24, v20, v18, v17, v14, v12)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
 
+play {
+  RandSeed.ir()
+  val v0 = 61.117977
+  val v1 = 386.08374
+  val v2 = 0.0017640435
+  val v3 = Decay2.ar(v2, v1, v0)
+  val v4 = GrayNoise.ar(v3)
+  val v5 = v1 clip2 v3
+  val v6 = LagUD.ar(v0, v4, v5)
+  val v7 = 10.87044
+  val v8 = Ball.ar(v4, v0, v6, v7)
+  val v9 = 0.01438544
+  val v10 = AllpassL.ar(v8, v2, v5, v9)
+  val v11 = v2 absdif v8
+  val v12 = PanB.ar(v1, v8, v0, v2)
+  val v13 = BiPanB2.ar(v1, v3, v6, v2)
+  val v14 = -0.0016412772
+  val v15 = LinRand(v6, v5, v14)
+  val v16 = BRZ2.ar(v15)
+  val v17 = PeakFollower.ar(v2, v5)
+  val v18 = 0.0069608754
+  val v19 = PeakFollower.ar(v18, v2)
+  val v20 = LatoocarfianL.ar(v3, v6, v10, v4, v10, v6, v4)
+  val v21 = TWindex.ar(v20, v3, v3)
+  val roots = Vector(v21, v19, v17, v16, v13, v12, v11)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
+
+play {
+  RandSeed.ir()
+  val v0 = 61.117977
+  val v1 = 0.0017354691
+  val v2 = 40.33182
+  val v3 = Decay2.ar(v1, v2, v0)
+  val v4 = GrayNoise.ar(v3)
+  val v5 = v0 - v4
+  val v6 = 10.679743
+  val v7 = Ball.ar(v4, v0, v5, v6)
+  val v8 = 1.3225549E-4
+  val v9 = AllpassL.ar(v7, v1, v3, v8)
+  val v10 = LatoocarfianL.ar(v3, v9, v9, v4, v5, v5, v4)
+  val v11 = BiPanB2.ar(v2, v3, v5, v1)
+  val v12 = PanB.ar(v10, v7, v1, v2)
+  val v13 = BRZ2.ar(v12)
+  val v14 = 0.24980739
+  val v15 = PeakFollower.ar(v14, v1)
+  val v16 = TWindex.ar(v10, v1, v3)
+  val v17 = 444.81253
+  val v18 = Balance2.ar(v15, v17, v1, v1)
+  val v19 = v18 clip2 v3
+  val v20 = PeakFollower.ar(v1, v6)
+  val roots = Vector(v20, v19, v16, v13, v11)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
+
+play {
+  RandSeed.ir()
+  val v0 = 40.33182
+  val v1 = 61.117977
+  val v2 = 0.0017354691
+  val v3 = Decay2.ar(v2, v0, v1)
+  val v4 = GrayNoise.ar(v3)
+  val v5 = v1 - v4
+  val v6 = 0.01438544
+  val v7 = AllpassL.ar(v0, v2, v3, v6)
+  val v8 = -53.342194
+  val v9 = LatoocarfianL.ar(v3, v5, v8, v4, v7, v5, v4)
+  val v10 = -0.05045082
+  val v11 = FreeVerb.ar(v9, v3, v3, v10)
+  val v12 = BiPanB2.ar(v0, v3, v5, v2)
+  val v13 = v0 clip2 v3
+  val v14 = PeakFollower.ar(v2, v13)
+  val v15 = PanB.ar(v2, v2, v1, v0)
+  val v16 = Lag.ar(v13, v5)
+  val v17 = BRZ2.ar(v16)
+  val v18 = 6.0194114E-4
+  val v19 = v16 roundTo v18
+  val v20 = 0.02018721
+  val v21 = LFCub.ar(v18, v20)
+  val roots = Vector(v21, v19, v17, v15, v14, v12, v11)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
+
+play {
+  RandSeed.ir()
+  val v0 = 0.0017354691
+  val v1 = 0.24980739
+  val v2 = PeakFollower.ar(v0, v1)
+  val v3 = PeakFollower.ar(v1, v0)
+  val v4 = 40.33182
+  val v5 = 61.117977
+  val v6 = GrayNoise.ar(v5)
+  val v7 = 62.67205
+  val v8 = v7 - v6
+  val v9 = 10.87044
+  val v10 = Ball.ar(v5, v6, v8, v9)
+  val v11 = PanB.ar(v0, v10, v5, v4)
+  val v12 = v3 < v11
+  val v13 = Lag.ar(v8, v4)
+  val v14 = BRZ2.ar(v13)
+  val v15 = 3.2413244E-4
+  val v16 = PanB2.ar(v8, v6, v15)
+  val v17 = RLPF.ar(v11, v1, v6)
+  val v18 = Decay.ar(v17, v6)
+  val v19 = Decay2.ar(v0, v4, v5)
+  val v20 = 767.5149
+  val v21 = TWindex.ar(v20, v18, v19)
+  val v22 = Peak.ar(v2, v10)
+  val v23 = -0.012458533
+  val v24 = v23 roundUpTo v19
+  val v25 = BiPanB2.ar(v4, v8, v19, v0)
+  val roots = Vector(v25, v24, v22, v21, v16, v14, v12)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}
+
+play {
+  RandSeed.ir()
+  val v0 = 40.33182
+  val v1 = 61.117977
+  val v2 = 0.0017354691
+  val v3 = Decay2.ar(v2, v0, v1)
+  val v4 = GrayNoise.ar(v0)
+  val v5 = v1 - v4
+  val v6 = BiPanB2.ar(v0, v3, v5, v2)
+  val v7 = 10.87044
+  val v8 = Ball.ar(v4, v1, v5, v7)
+  val v9 = 201.34566
+  val v10 = v9 clip2 v3
+  val v11 = Lag.ar(v5, v10)
+  val v12 = BRZ2.ar(v11)
+  val v13 = PeakFollower.ar(v12, v2)
+  val v14 = 0.0069608754
+  val v15 = -0.0016412772
+  val v16 = PeakFollower.ar(v14, v15)
+  val v17 = TWindex.ar(v15, v3, v3)
+  val v18 = Impulse.ar(v14, v9)
+  val v19 = 0.01454035
+  val v20 = T2A.ar(v19)
+  val roots = Vector(v20, v18, v17, v16, v13, v8, v6)
+  val sig = Mix(roots)
+  Limiter.ar(LeakDC.ar(sig))
+}

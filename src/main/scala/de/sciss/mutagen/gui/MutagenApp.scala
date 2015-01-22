@@ -20,7 +20,7 @@ import com.alee.laf.WebLookAndFeel
 import com.alee.laf.checkbox.WebCheckBoxStyle
 import com.alee.laf.progressbar.WebProgressBarStyle
 import de.sciss.audiowidgets.Transport
-import de.sciss.desktop.{Window, WindowHandler}
+import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.desktop.impl.WindowImpl
 import de.sciss.file._
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
@@ -30,7 +30,7 @@ import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
 import de.sciss.synth.swing.ServerStatusPanel
 
 import scala.concurrent.ExecutionContext
-import scala.swing.{Button, Swing}
+import scala.swing.{Action, Button, Swing}
 import Swing._
 import scala.util.{Success, Failure, Try}
 
@@ -50,6 +50,11 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
     WebProgressBarStyle.highlightDarkWhite  = new Color(255, 255, 255, 0)
 
     super.init()
+
+    val Some(mExport: Menu.Group) = menuFactory.get("file.export")
+    mExport.add(
+      Menu.Item("audio-file", "Audio File...")
+    )
 
     new MainFrame
 
@@ -141,6 +146,19 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
     tp += butPrint
     tp += butStats
     tp += bs
+
+    frame.bindMenu("file.export.audio-file", Action(null) {
+      frame.selectedNodes.headOption.foreach { node =>
+        FileDialog.save().show(Some(frame.window)).foreach { f =>
+          implicit val g = frame.generation.global
+          import ExecutionContext.Implicits.global
+          val proc = Evaluation.bounce(node.chromosome, f)
+          proc.onFailure {
+            case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))
+          }
+        }
+      }
+    })
   }
 
   private final class MainFrame extends WindowImpl {
