@@ -32,6 +32,9 @@ lazy val audioFileVersion       = "1.4.4"
 
 lazy val webLaFVersion          = "1.28"
 
+// required for Play JSON
+resolvers += "Typesafe Releases" at "https://repo.typesafe.com/typesafe/maven-releases/"
+
 libraryDependencies ++= Seq(
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
   "de.sciss" %% "scalacolliderugens-core" % ugensVersion,
