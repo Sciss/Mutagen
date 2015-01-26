@@ -1,3 +1,4 @@
 #!/bin/sh
 cd "`dirname $0`"
-java -Xms2048m -Xmx2048m -XX:PermSize=256m -XX:MaxPermSize=512m -server -jar Mutagen.jar --auto /home/hhrutz/Documents/temp/muta_test13.json
+killall scsynth
+java -Xms2048m -Xmx2048m -XX:PermSize=256m -XX:MaxPermSize=512m -server -jar Mutagen.jar --auto -n 50 -f auto/muta.json

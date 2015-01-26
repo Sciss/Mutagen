@@ -15,6 +15,8 @@ package de.sciss.mutagen
 package gui
 
 import java.awt.Color
+import java.text.SimpleDateFormat
+import java.util.{Date, Locale}
 
 import com.alee.laf.WebLookAndFeel
 import com.alee.laf.checkbox.WebCheckBoxStyle
@@ -28,6 +30,7 @@ import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
 import de.sciss.synth.swing.ServerStatusPanel
+import scopt.OptionParser
 
 import scala.concurrent.ExecutionContext
 import scala.swing.{Action, Button, Swing}
@@ -37,6 +40,19 @@ import scala.util.{Success, Failure, Try}
 object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
+
+  private final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50)
+
+  private def parseArgs(): Options = {
+    val parser  = new OptionParser[Options]("mutagen") {
+      opt[Unit]('a', "auto") text "Auto run" action { (_, res) => res.copy(auto = true) }
+      opt[File]('f', "file") required() text "JSON file to open" action { (arg, res) => res.copy(in = Some(arg)) }
+      opt[Int]('n', "num-steps") text "Number of iterations between saving in auto run (default 50)" action {
+        (arg, res) => res.copy(autoSteps = arg) }
+    }
+
+    parser.parse(args, Options()).fold(sys.exit(1))(identity)
+  }
 
   protected override def init(): Unit = {
     // println(MutagenSystem.chromosomeClassTag)
@@ -58,32 +74,36 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
     new MainFrame
 
-    args.toList match {
-      case "--auto" :: path :: _ =>
-        val f = file(path)
-        openDocument(f).foreach { fr =>
-          import ExecutionContext.Implicits.global
-          def iter(): Unit = {
-            fr.iterate(n = 50, quiet = true).onComplete {
-              case Success(_) =>
-                println("Saving...")
-                fr.save(f).foreach { _ =>
-                  iter()
-                }
+    val opt = parseArgs()
+     opt.in.foreach { f =>
+       val frOpt = openDocument(f)
+       if (opt.auto) frOpt.foreach { fr =>
+         val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
+         import ExecutionContext.Implicits.global
+         def iter(): Unit = {
+           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
+             case Success(_) =>
+               println("Backing up...")
+               import sys.process._
+               val child  = fileFormat.format(new Date(f.lastModified()))
+               val out    = f.parentOption.fold(file(child))(_ / child)
+               Seq("mv", f.path, out.path).!
+               println("Saving...")
+               fr.save(f).foreach { _ =>
+                 iter()
+               }
 
-              case Failure(ex) =>
-                ex.printStackTrace()
-                import sys.process._
-                Console.err.println("Restarting...")
-                Seq("/bin/sh", "mutagen-auto").run()
-                sys.exit()
-            }
-          }
+             case Failure(ex) =>
+               ex.printStackTrace()
+               import sys.process._
+               Console.err.println("Restarting...")
+               Seq("/bin/sh", "mutagen-auto").run()
+               sys.exit()
+           }
+         }
 
-          iter()
-        }
-
-      case _ =>
+         iter()
+      }
     }
   }
 
