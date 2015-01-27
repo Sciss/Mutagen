@@ -41,7 +41,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
 
-  private final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50)
+  private final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
+                                   autoSeed: Boolean = true)
 
   private def parseArgs(): Options = {
     val parser  = new OptionParser[Options]("mutagen") {
@@ -49,6 +50,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       opt[File]('f', "file") required() text "JSON file to open" action { (arg, res) => res.copy(in = Some(arg)) }
       opt[Int]('n', "num-steps") text "Number of iterations between saving in auto run (default 50)" action {
         (arg, res) => res.copy(autoSteps = arg) }
+      opt[Unit]('s', "seed") text "Use changing random seeds in auto run" action {
+        (_, res) => res.copy(autoSeed = true) }
     }
 
     parser.parse(args, Options()).fold(sys.exit(1))(identity)
@@ -81,6 +84,12 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
          val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
          import ExecutionContext.Implicits.global
          def iter(): Unit = {
+           if (opt.autoSeed) {
+             val globOld  = fr.generation.global
+             val seed     = util.Random.nextInt() // based on date
+             val globNew  = globOld.copy(seed = seed)
+             fr.generation = fr.generation.copy(global = globNew)
+           }
            fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
              case Success(_) =>
                println("Backing up...")
