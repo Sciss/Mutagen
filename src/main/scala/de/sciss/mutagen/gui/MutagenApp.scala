@@ -42,7 +42,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useInternalFrames = false
 
   private final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
-                                   autoSeed: Boolean = true)
+                                   autoSeed: Boolean = false)
 
   private def parseArgs(): Options = {
     val parser  = new OptionParser[Options]("mutagen") {
