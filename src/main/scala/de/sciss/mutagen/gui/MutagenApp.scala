@@ -26,6 +26,7 @@ import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.desktop.impl.WindowImpl
 import de.sciss.file._
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
+import de.sciss.processor.Processor
 import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
@@ -41,13 +42,13 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
 
-  private final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
-                                   autoSeed: Boolean = false)
+  final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
+                           autoSeed: Boolean = false)
 
   private def parseArgs(): Options = {
     val parser  = new OptionParser[Options]("mutagen") {
       opt[Unit]('a', "auto") text "Auto run" action { (_, res) => res.copy(auto = true) }
-      opt[File]('f', "file") required() text "JSON file to open" action { (arg, res) => res.copy(in = Some(arg)) }
+      opt[File]('f', "file") text "JSON file to open" action { (arg, res) => res.copy(in = Some(arg)) }
       opt[Int]('n', "num-steps") text "Number of iterations between saving in auto run (default 50)" action {
         (arg, res) => res.copy(autoSteps = arg) }
       opt[Unit]('s', "seed") text "Use changing random seeds in auto run" action {
@@ -56,6 +57,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
     parser.parse(args, Options()).fold(sys.exit(1))(identity)
   }
+
+  val opt = parseArgs()
 
   protected override def init(): Unit = {
     // println(MutagenSystem.chromosomeClassTag)
@@ -77,41 +80,42 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
     new MainFrame
 
-    val opt = parseArgs()
-     opt.in.foreach { f =>
-       val frOpt = openDocument(f)
-       if (opt.auto) frOpt.foreach { fr =>
-         val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
-         import ExecutionContext.Implicits.global
-         def iter(): Unit = {
-           if (opt.autoSeed) {
-             val globOld  = fr.generation.global
-             val seed     = util.Random.nextInt() // based on date
-             val globNew  = globOld.copy(seed = seed)
-             fr.generation = fr.generation.copy(global = globNew)
-           }
-           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
-             case Success(_) =>
-               println("Backing up...")
-               import sys.process._
-               val child  = fileFormat.format(new Date(f.lastModified()))
-               val out    = f.parentOption.fold(file(child))(_ / child)
-               Seq("mv", f.path, out.path).!
-               println("Saving...")
-               fr.save(f).foreach { _ =>
-                 iter()
-               }
+    opt.in.foreach { f =>
+      val frOpt = openDocument(f)
+      if (opt.auto) frOpt.foreach { fr =>
+        val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
+        import ExecutionContext.Implicits.global
+        def iter(): Unit = {
+          if (opt.autoSeed) {
+            val globOld  = fr.generation.global
+            val seed     = util.Random.nextInt() // based on date
+            val globNew  = globOld.copy(seed = seed)
+            fr.generation = fr.generation.copy(global = globNew)
+          }
+          fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
+            case Success(_) =>
+              println("Backing up...")
+              import sys.process._
+              val child  = fileFormat.format(new Date(f.lastModified()))
+              val out    = f.parentOption.fold(file(child))(_ / child)
+              Seq("mv", f.path, out.path).!
+              println("Saving...")
+              fr.save(f).foreach { _ =>
+                iter()
+              }
 
-             case Failure(ex) =>
-               ex.printStackTrace()
-               import sys.process._
-               Console.err.println("Restarting...")
-               Seq("/bin/sh", "mutagen-auto").run()
-               sys.exit()
-           }
-         }
+            case Failure(Processor.Aborted()) => // then stop
 
-         iter()
+            case Failure(ex) =>
+              ex.printStackTrace()
+              import sys.process._
+              Console.err.println("Restarting...")
+              Seq("/bin/sh", "mutagen-auto").run()
+              sys.exit()
+          }
+        }
+
+        iter()
       }
     }
   }
