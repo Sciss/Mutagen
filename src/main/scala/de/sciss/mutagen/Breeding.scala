@@ -14,6 +14,14 @@ case class Breeding(elitism: SelectionSize = SelectionNumber(4), mutationIter: I
 
   val crossoverWeight: SelectionPercent = SelectionPercent(0)  // XXX TODO
 
+  /** Override to allow a population to grow or shrink dynamically if the process
+    * is interrupted and the settings changed.
+    */
+  override def apply(g: Vec[(Chromosome, Double, Boolean)], global: Global, r: util.Random): Vec[Chromosome] = {
+    val g1 = if (g.size == global.population) g else Vector.tabulate(global.population)(i => g(i % g.size))
+    super.apply(g1, global, r)
+  }
+
   object crossover extends BreedingFunction[Chromosome, Global] {
     def apply(genome: Vec[Chromosome], sz: Int, global: Global, rnd: Random): Vec[Chromosome] = {
       ???
