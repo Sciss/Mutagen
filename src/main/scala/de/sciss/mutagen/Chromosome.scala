@@ -29,6 +29,8 @@ object Vertex {
     private final class Impl(val info: UGenSpec) extends UGen {
       private def isBinOp: Boolean = info.name.startsWith("Bin_")
 
+      def copy(): UGen = new Impl(info)
+
       def instantiate(ins: Vec[(AnyRef, Class[_])]): GE =
         if (isBinOp) mkBinOpUGen(ins) else mkRegularUGen(ins)
 
@@ -105,9 +107,12 @@ object Vertex {
   }
   class Constant(val f: Float) extends Vertex {
     override def toString = s"$f@${hashCode().toHexString}"
+    def copy(): Constant = new Constant(f)
   }
 }
-sealed trait Vertex
+sealed trait Vertex {
+  def copy(): Vertex
+}
 
 /** The edge points from '''consuming''' (source) element to '''input''' element (target).
   * Therefore, the `sourceVertex`'s `inlet` will be occupied by `targetVertex`

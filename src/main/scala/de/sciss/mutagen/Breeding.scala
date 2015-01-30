@@ -1,3 +1,16 @@
+/*
+ *  Breeding.scala
+ *  (Mutagen)
+ *
+ *  Copyright (c) 2014-2015 Hanns Holger Rutz. All rights reserved.
+ *
+ *  This software is published under the GNU General Public License v3+
+ *
+ *
+ *  For further information, please contact Hanns Holger Rutz at
+ *  contact@sciss.de
+ */
+
 package de.sciss.mutagen
 
 import de.sciss.muta
@@ -5,14 +18,10 @@ import de.sciss.muta.{BreedingFunction, SelectionPercent, SelectionNumber, Selec
 
 import scala.util.Random
 
-case class Breeding(elitism: SelectionSize = SelectionNumber(4), mutationIter: Int = 2)
+case class Breeding(elitism: SelectionSize = SelectionNumber(4),
+                    crossoverWeight: SelectionPercent = SelectionPercent(50),
+                    mutationIter: Int = 2)
   extends muta.Breeding[Chromosome, Global] with muta.impl.BreedingImpl[Chromosome, Global] {
-
-  //    def apply(sel: Vec[(Chromosome, Double, Boolean)], g: Global, rnd: Random): Vec[Chromosome] = {
-  //      Vec.tabulate(g.population)(i => sel(i % sel.size)._1)
-  //    }
-
-  val crossoverWeight: SelectionPercent = SelectionPercent(0)  // XXX TODO
 
   /** Override to allow a population to grow or shrink dynamically if the process
     * is interrupted and the settings changed.
@@ -22,11 +31,7 @@ case class Breeding(elitism: SelectionSize = SelectionNumber(4), mutationIter: I
     super.apply(g1, global, r)
   }
 
-  object crossover extends BreedingFunction[Chromosome, Global] {
-    def apply(genome: Vec[Chromosome], sz: Int, global: Global, rnd: Random): Vec[Chromosome] = {
-      ???
-    }
-  }
+  def crossover: BreedingFunction[Chromosome, Global] = impl.CrossoverImpl
 
   val mutation: BreedingFunction[Chromosome, Global] = new impl.MutationImpl(mutationIter)
 }

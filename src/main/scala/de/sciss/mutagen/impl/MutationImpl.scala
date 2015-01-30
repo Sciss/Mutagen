@@ -25,9 +25,32 @@ object MutationImpl {
   private val stats = Array.fill(5)(0)
 
   def printStats(): Unit = println(stats.mkString(", "))
+
+  private def getTargets(top: Top, v: Vertex): Set[Edge] =
+    top.edges.collect {
+      case e @ Edge(_, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
+    }
+
+  def removeVertex1(top: Top)(implicit random: Random, global: Global): (Top, Vertex) = {
+    val vertices    = top.vertices
+    val numVertices = vertices.size
+    val idx         = random.nextInt(numVertices)
+    val v           = vertices(idx)
+    val targets     = getTargets(top, v)
+    val top1        = top.removeVertex(v)
+    val top3        = (top1 /: targets) { (top2, e) =>
+      val x = top2.removeEdge(e)
+      assert(x ne top2)
+      x
+    }
+    val succ = (top3 /: targets) { case (top4, Edge(t: Vertex.UGen, _, _)) =>
+      ChromosomeImpl.completeUGenInputs(top4, t)
+    }
+    (succ, v)
+  }
 }
 class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Global] {
-  import MutationImpl.stats
+  import MutationImpl._
 
   def apply(genome: Vec[Chromosome], sz: Int, glob: Global, rnd: Random): Vec[Chromosome] = {
     implicit val random = rnd
@@ -71,19 +94,8 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
     val vertices    = top.vertices
     val numVertices = vertices.size
     if (numVertices <= global.minNumVertices) None else {
-      val idx     = random.nextInt(numVertices)
-      val v       = vertices(idx)
-      val targets = getTargets(top, v)
-      val top1    = top.removeVertex(v)
-      val top3    = (top1 /: targets) { (top2, e) =>
-        val x = top2.removeEdge(e)
-        assert(x ne top2)
-        x
-      }
-      val succ = (top3 /: targets) { case (top4, Edge(t: Vertex.UGen, _, _)) =>
-        ChromosomeImpl.completeUGenInputs(top4, t)
-      }
-      val res  = new Chromosome(succ, seed = random.nextLong())
+      val (succ, v)   = removeVertex1(top)
+      val res         = new Chromosome(succ, seed = random.nextLong())
       checkComplete(succ, s"removeVertex($v)")
       stats(1) += 1
       Some(res)
@@ -200,11 +212,6 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
       case _ =>
     }
   }
-
-  private def getTargets(top: Top, v: Vertex): Set[Edge] =
-    top.edges.collect {
-      case e @ Edge(_, `v`, _) => e // a vertex `vi` that uses the removed vertex as one of its inlets
-    }
 
   /*
     ways to mutate:

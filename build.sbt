@@ -24,7 +24,7 @@ lazy val mutaVersion            = "0.5.0"
 
 lazy val fileCacheVersion       = "0.3.2"
 
-// lazy val audioWidgetsVersion    = "1.7.2"
+lazy val kollFlitzVersion       = "0.2.0"
 
 lazy val scalaColliderSwingVersion = "1.24.0"
 
@@ -42,7 +42,7 @@ libraryDependencies ++= Seq(
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
   "de.sciss" %% "muta"                    % mutaVersion,
   "de.sciss" %% "filecache-mutable"       % fileCacheVersion,
-  // "de.sciss" %% "audiowidgets-swing"      % audioWidgetsVersion,
+  "de.sciss" %% "kollflitz"               % kollFlitzVersion,
   "de.sciss" %% "scalacolliderswing-core" % scalaColliderSwingVersion,
   "de.sciss" %% "scalaaudiofile"          % audioFileVersion,
   "de.sciss" %  "weblaf"                  % webLaFVersion
