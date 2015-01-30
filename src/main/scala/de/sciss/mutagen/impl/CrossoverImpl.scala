@@ -65,14 +65,21 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
 
       def mkTop(vertices: Vec[Vertex], edges: Set[Edge]): Top = {
         val t0 = Topology.empty[Vertex, Edge]
-        val t1 = (t0 /: vertices) { (res, v0) =>
+        val (t1, e1) = ((t0, edges) /: vertices) { case ((t2, e2), v0) =>
           // two parents might share the same vertices from a common
           // ancestry; in that case we must individualize the vertex
           // (making a copy means they get fresh object identity and hash)
-          val v = if (res.vertices.contains(v0)) v0.copy() else v0
-          res.addVertex(v)
+          val isNew = !t2.vertices.contains(v0)
+          val v     = if (isNew) v0 else v0.copy()
+          val t3    = t2.addVertex(v)
+          val e3    = if (isNew) e2 else e2.map { e =>
+            if      (e.sourceVertex == v0) e.copy(sourceVertex = v)
+            else if (e.targetVertex == v0) e.copy(targetVertex = v)
+            else e
+          }
+          (t3, e3)
         }
-        (t1 /: edges)(_.addEdge(_).get._1)
+        (t1 /: e1)(_.addEdge(_).get._1)
       }
 
       val topC1a = mkTop(head1 ++ tail2, edgesHead1 ++ edgesTail2)
