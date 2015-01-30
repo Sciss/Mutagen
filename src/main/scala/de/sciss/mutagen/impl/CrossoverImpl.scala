@@ -63,13 +63,15 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
           shrinkTop(top1, target = target, iter = iter + 1)
         }
 
-      def mkTop(vertices: Vec[Vertex], edges: Set[Edge]): Top = {
-        val t0 = Topology.empty[Vertex, Edge]
-        val (t1, e1) = ((t0, edges) /: vertices) { case ((t2, e2), v0) =>
+      def mkTop(vertices1: Vec[Vertex], edges1: Set[Edge], vertices2: Vec[Vertex], edges2: Set[Edge]): Top = {
+        val t0 = (Topology.empty[Vertex, Edge] /: vertices1)(_ addVertex _)
+        val t1 = (t0 /: edges1)(_.addEdge(_).get._1)  // this is now the first half of the original top
+
+        val (t3, e2c) = ((t1, edges2) /: vertices2) { case ((t2, e2), v0) =>
           // two parents might share the same vertices from a common
           // ancestry; in that case we must individualize the vertex
           // (making a copy means they get fresh object identity and hash)
-          val isNew = !t2.vertices.contains(v0)
+          val isNew = !vertices1.contains(v0)
           val v     = if (isNew) v0 else v0.copy()
           val t3    = t2.addVertex(v)
           val e3    = if (isNew) e2 else e2.map { e =>
@@ -79,11 +81,17 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
           }
           (t3, e3)
         }
-        (t1 /: e1)(_.addEdge(_).get._1)
+        (t3 /: e2c) { (t2, e2) =>
+          val res = t1.addEdge(e2)
+          if (res.isFailure) {
+            println("WARNING: Cross-over mkTop - cycle detected!")
+          }
+          res.toOption.fold(t2)(_._1)
+        }
       }
 
-      val topC1a = mkTop(head1 ++ tail2, edgesHead1 ++ edgesTail2)
-      val topC2a = mkTop(head2 ++ tail1, edgesHead2 ++ edgesTail1)
+      val topC1a = mkTop(head1, edgesHead1, tail2, edgesTail2)
+      val topC2a = mkTop(head2, edgesHead2, tail1, edgesTail1)
 
       def complete(top: Top): Top = {
         val inc = top.vertices.collect {
