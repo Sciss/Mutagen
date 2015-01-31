@@ -57,6 +57,13 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
       val edgesHead2      = top2.edges.filter(e => head2.contains(e.sourceVertex) && head2.contains(e.targetVertex))
       val edgesTail2      = top2.edges.filter(e => tail2.contains(e.sourceVertex) && tail2.contains(e.targetVertex))
 
+      val severedHeads1   = top1.edges.collect {
+        case Edge(source: Vertex.UGen, target, _) if head1.contains(source) && tail1.contains(target) => source
+      }
+      val severedHeads2   = top2.edges.collect {
+        case Edge(source: Vertex.UGen, target, _) if head2.contains(source) && tail2.contains(target) => source
+      }
+
       @tailrec def shrinkTop(top: Top, target: Int, iter: Int): Top =
         if (top.vertices.size <= target || iter == global.maxNumVertices) top else {
           val (top1, _) = MutationImpl.removeVertex1(top)
@@ -93,17 +100,23 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
       val topC1a = mkTop(head1, edgesHead1, tail2, edgesTail2)
       val topC2a = mkTop(head2, edgesHead2, tail1, edgesTail1)
 
-      def complete(top: Top): Top = {
-        val inc = top.vertices.collect {
-          case v: Vertex.UGen if ChromosomeImpl.findIncompleteUGenInputs(top, v).nonEmpty => v
-        }
+      //      def completeOLD(top: Top): Top = {
+      //        val inc = top.vertices.collect {
+      //          case v: Vertex.UGen if ChromosomeImpl.findIncompleteUGenInputs(top, v).nonEmpty => v
+      //        }
+      //        val top1 = if (inc.isEmpty) top else (top /: inc)((res, v) => ChromosomeImpl.completeUGenInputs(res, v))
+      //        val top2 = shrinkTop(top1, top.vertices.size, 0)
+      //        top2
+      //      }
+
+      def complete(top: Top, inc: Set[Vertex.UGen]): Top = {
         val top1 = if (inc.isEmpty) top else (top /: inc)((res, v) => ChromosomeImpl.completeUGenInputs(res, v))
         val top2 = shrinkTop(top1, top.vertices.size, 0)
         top2
       }
 
-      val topC1 = complete(topC1a)
-      val topC2 = complete(topC2a)
+      val topC1 = complete(topC1a, severedHeads1)
+      val topC2 = complete(topC2a, severedHeads2)
 
       val c1  = new Chromosome(topC1, rnd.nextLong())
       val c2  = new Chromosome(topC2, rnd.nextLong())

@@ -1,4 +1,4 @@
 #!/bin/sh
 cd "`dirname $0`"
 killall scsynth
-java -Xms2048m -Xmx2048m -XX:PermSize=256m -XX:MaxPermSize=512m -server -jar Mutagen.jar --auto --seed -n 50 -f auto/muta.json
+java -Xms2048m -Xmx2048m -XX:PermSize=256m -XX:MaxPermSize=512m -server -jar Mutagen.jar --auto --seed -n 10 -f auto/muta.json
