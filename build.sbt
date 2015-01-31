@@ -30,6 +30,8 @@ lazy val scalaColliderSwingVersion = "1.24.0"
 
 lazy val audioFileVersion       = "1.4.4"
 
+lazy val lucreSwingVersion      = "0.7.0"
+
 lazy val webLaFVersion          = "1.28"
 
 // required for Play JSON
@@ -45,6 +47,7 @@ libraryDependencies ++= Seq(
   "de.sciss" %% "kollflitz"               % kollFlitzVersion,
   "de.sciss" %% "scalacolliderswing-core" % scalaColliderSwingVersion,
   "de.sciss" %% "scalaaudiofile"          % audioFileVersion,
+  "de.sciss" %% "lucreswing"              % lucreSwingVersion,
   "de.sciss" %  "weblaf"                  % webLaFVersion
 )
 
