@@ -11,15 +11,15 @@
  *  contact@sciss.de
  */
 
-package de.sciss.mutagen.gui
+package de.sciss.mutagen
 
 import javax.swing.{JComponent, JPanel}
 
 import de.sciss.desktop.FileDialog
 import de.sciss.file._
 
-import scala.swing.event.{ValueChanged, EditDone}
-import scala.swing.{Button, TextField, Component}
+import scala.swing.event.{EditDone, ValueChanged}
+import scala.swing.{Button, Component, TextField}
 
 class PathField
   extends Component {

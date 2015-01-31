@@ -12,7 +12,6 @@
  */
 
 package de.sciss.mutagen
-package gui
 
 import java.awt.Color
 import java.text.SimpleDateFormat
@@ -22,21 +21,21 @@ import com.alee.laf.WebLookAndFeel
 import com.alee.laf.checkbox.WebCheckBoxStyle
 import com.alee.laf.progressbar.WebProgressBarStyle
 import de.sciss.audiowidgets.Transport
-import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.desktop.impl.WindowImpl
+import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.file._
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
 import de.sciss.processor.Processor
 import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
-import de.sciss.synth.{ServerConnection, SynthDef, Server, Synth}
 import de.sciss.synth.swing.ServerStatusPanel
+import de.sciss.synth.{Server, ServerConnection, Synth, SynthDef}
 import scopt.OptionParser
 
 import scala.concurrent.ExecutionContext
+import scala.swing.Swing._
 import scala.swing.{Action, Button, Swing}
-import Swing._
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def useNimbus         = false
@@ -84,7 +83,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       val frOpt = openDocument(f)
       if (opt.auto) frOpt.foreach { fr =>
         val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
-        import ExecutionContext.Implicits.global
+        import scala.concurrent.ExecutionContext.Implicits.global
         def iter(): Unit = {
           if (opt.autoSeed) {
             val globOld  = fr.generation.global
@@ -95,7 +94,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
             case Success(_) =>
               println("Backing up...")
-              import sys.process._
+              import scala.sys.process._
               val child  = fileFormat.format(new Date(f.lastModified()))
               val out    = f.parentOption.fold(file(child))(_ / child)
               Seq("mv", f.path, out.path).!
@@ -108,7 +107,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
 
             case Failure(ex) =>
               ex.printStackTrace()
-              import sys.process._
+              import scala.sys.process._
               Console.err.println("Restarting...")
               Seq("/bin/sh", "mutagen-auto").run()
               sys.exit()
@@ -123,7 +122,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
   override protected def configureDocumentFrame(frame: DocumentFrame[MutagenSystem.type]): Unit = {
     var synthOpt = Option.empty[Synth]
 
-    import synth.Ops._
+    import de.sciss.synth.Ops._
 
     def stopSynth(): Unit = synthOpt.foreach { synth =>
       synthOpt = None
@@ -184,7 +183,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       frame.selectedNodes.headOption.foreach { node =>
         FileDialog.save().show(Some(frame.window)).foreach { f =>
           implicit val g = frame.generation.global
-          import ExecutionContext.Implicits.global
+          import scala.concurrent.ExecutionContext.Implicits.global
           val proc = Evaluation.bounce(node.chromosome, f)
           proc.onFailure {
             case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))

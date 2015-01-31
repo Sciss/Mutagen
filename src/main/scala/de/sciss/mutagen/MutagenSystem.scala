@@ -14,13 +14,12 @@
 package de.sciss.mutagen
 
 import de.sciss.file._
-import de.sciss.guiflitz.{Cell, AutoView}
+import de.sciss.guiflitz.{AutoView, Cell}
 import de.sciss.model.Model
-import de.sciss.mutagen.gui.PathField
 import de.sciss.play.json.AutoFormat
 import de.sciss.synth.io.AudioFile
 import de.sciss.{muta, mutagen}
-import play.api.libs.json.{JsSuccess, JsError, JsString, JsResult, JsValue, Format}
+import play.api.libs.json.{Format, JsError, JsResult, JsString, JsSuccess, JsValue}
 
 import scala.reflect.{ClassTag, classTag}
 import scala.swing.Label
