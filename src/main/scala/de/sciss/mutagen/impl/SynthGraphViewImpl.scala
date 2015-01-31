@@ -8,8 +8,7 @@ import de.sciss.lucre.swing.requireEDT
 import de.sciss.lucre.synth.Sys
 import prefuse.action.layout.Layout
 import prefuse.action.{RepaintAction, ActionList}
-import prefuse.action.layout.graph.{ForceDirectedLayout, NodeLinkTreeLayout}
-import prefuse.activity.Activity
+import prefuse.action.layout.graph.NodeLinkTreeLayout
 import prefuse.controls.{DragControl, PanControl, ZoomControl}
 import prefuse.data.{Graph, Node}
 import prefuse.render.{AbstractShapeRenderer, DefaultRendererFactory, Renderer}
@@ -17,7 +16,6 @@ import prefuse.util.ColorLib
 import prefuse.visual.{EdgeItem, VisualItem}
 import prefuse.{Display, Visualization}
 
-import scala.collection.JavaConversions
 import scala.swing.Component
 
 object SynthGraphViewImpl {
@@ -33,8 +31,8 @@ object SynthGraphViewImpl {
           res.addVertex(v)
       }
       top.edges   .foreach(res.addEdge  )
-      res.visualization.run(ACTION_LAYOUT1)
-      // res.visualization.run(ACTION_LAYOUT2)
+      // res.visualization.run(ACTION_LAYOUT1)
+      res.visualization.run(ACTION_LAYOUT2)
       res
     }
 
@@ -74,6 +72,7 @@ object SynthGraphViewImpl {
         private final val V_SPACE   = 32
         private final val H_SPACE   = 16
         private final val LAY_STEP  = 16
+        private final val LAY_STEP_H = 4
 
         private val rect = new Rectangle2D.Double
 
@@ -118,23 +117,22 @@ object SynthGraphViewImpl {
             val y     = if (yTgt0 < y0 - LAY_STEP) y0 - LAY_STEP else if (yTgt0 > y0 + LAY_STEP) y0 + LAY_STEP else yTgt0
             val isVertical = math.abs(yTgt0 - y) >= 0.1
             // once the y-coordinates are in place, start fixing horizontal overlaps
-            val x = if (isVertical)
-              if (xTgt0 < x0 - LAY_STEP) x0 - LAY_STEP else if (xTgt0 > x0 + LAY_STEP) x0 + LAY_STEP else xTgt0
-            else {
+            val x1    = if (xTgt0 < x0 - LAY_STEP_H) x0 - LAY_STEP_H else if (xTgt0 > x0 + LAY_STEP_H) x0 + LAY_STEP_H else xTgt0
+            val x = if (isVertical) x1 else {
               val deltas = viewMap.flatMap {
                 case (v1, box1) if v1 != v =>
                   val vi1 = visualization.getVisualItem(GROUP_GRAPH, box1.node)
                   val b1  = vi1.getBounds
-                  rect.setRect(x0, y, b.getWidth, b.getHeight)
+                  rect.setRect(x1 - H_SPACE, y, b.getWidth + H_SPACE + H_SPACE, b.getHeight)
                   if (b1.intersects(rect)) {
                     val c1 = b1  .getCenterX
                     val c2 = rect.getCenterX
                     val xTgt1 = if (c1 < c2) {  // move to the right
                       b1.getMaxX + H_SPACE
                     } else {        // move to the left
-                      b1.getMinX - H_SPACE - rect.getWidth
+                      b1.getMinX - H_SPACE - b.getWidth
                     }
-                    val delta = xTgt1 - x0
+                    val delta = xTgt1 - x1
                     Some(delta)
 
                   } else None
@@ -142,10 +140,10 @@ object SynthGraphViewImpl {
                 case _ => None
               }
 
-              if (deltas.isEmpty) x0 else {
+              if (deltas.isEmpty) x1 else {
                 val delta   = deltas.maxBy(math.abs)
-                val delta0  = (x0 + delta) / 2
-                if (delta0 < x0 - LAY_STEP) x0 - LAY_STEP else if (delta0 > x0 + LAY_STEP) x0 + LAY_STEP else delta0
+                val delta0  = math.max(-LAY_STEP, math.min(LAY_STEP, delta / 2))
+                x1 + delta0
               }
             }
 
