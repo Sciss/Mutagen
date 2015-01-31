@@ -26,18 +26,16 @@ import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.file._
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
 import de.sciss.processor.Processor
-import de.sciss.synth
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.swing.ServerStatusPanel
 import de.sciss.synth.{Server, ServerConnection, Synth, SynthDef}
 import scopt.OptionParser
 
-import scala.concurrent.ExecutionContext
 import scala.swing.Swing._
-import scala.swing.{Action, Button, Swing}
+import scala.swing.{Action, Button}
 import scala.util.{Failure, Success, Try}
 
-object MutagenApp extends GeneticApp(MutagenSystem) {
+object MutagenApp extends GeneticApp(MutagenSystem) { app =>
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
 
@@ -166,6 +164,20 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
       }
     }
 
+    val butView = Button("View") {
+      frame.selectedNodes.foreach { node =>
+        val p = impl.SynthGraphViewImpl(node.chromosome.top)
+        new WindowImpl {
+          def handler: WindowHandler = app.windowHandler
+
+          title     = node.chromosome.hashCode.toHexString
+          contents  = p.component
+          size      = (400, 400)
+          front()
+        }
+      }
+    }
+
     val butStats = Button("Stats") {
       impl.MutationImpl.printStats()
     }
@@ -176,6 +188,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) {
     tp += pStatus
     tp += butKill
     tp += butPrint
+    tp += butView
     tp += butStats
     tp += bs
 

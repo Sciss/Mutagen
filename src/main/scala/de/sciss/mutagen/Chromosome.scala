@@ -37,11 +37,18 @@ object Vertex {
       def asCompileString(ins: Vec[String]): String =
         if (isBinOp) mkBinOpString(ins) else mkRegularString(ins)
 
+      def boxName =
+        if (isBinOp) {
+          val id = info.name.substring(4).toInt
+          val op = BinaryOpUGen.Op(id)
+          val n   = op.name
+          s"${n.substring(0, 1).toLowerCase}${n.substring(1)}"
+        } else {
+          info.name
+        }
+
       private def mkBinOpString(ins: Vec[String]): String = {
-        val id = info.name.substring(4).toInt
-        val op = BinaryOpUGen.Op(id)
-        val n  = op.name
-        val nu = s"${n.substring(0, 1).toLowerCase}${n.substring(1)}"
+        val nu = boxName
         s"(${ins(0)} $nu ${ins(1)})"
       }
 
@@ -108,10 +115,14 @@ object Vertex {
   class Constant(val f: Float) extends Vertex {
     override def toString = s"$f@${hashCode().toHexString}"
     def copy(): Constant = new Constant(f)
+
+    def boxName = f.toString
   }
 }
 sealed trait Vertex {
   def copy(): Vertex
+
+  def boxName: String
 }
 
 /** The edge points from '''consuming''' (source) element to '''input''' element (target).
