@@ -23,9 +23,9 @@ object Evaluation {
   def getInputSpec(c: Chromosome)(implicit global: Global): Future[(File, AudioFileSpec)] =
     impl.EvaluationImpl.getInputSpec(c)
 
-  def bounce(c: Chromosome, f: File) (implicit exec: ExecutionContext, global: Global): Future[Any] =
+  def bounce(c: Chromosome, f: File, duration: Double = -1) (implicit exec: ExecutionContext, global: Global): Future[Any] =
     getInputSpec(c).flatMap { case (inputExtr, inputSpec) =>
-      impl.ChromosomeImpl.bounce(c, audioF = f, inputSpec = inputSpec, inputExtr = inputExtr)
+      impl.ChromosomeImpl.bounce(c, audioF = f, inputSpec = inputSpec, inputExtr = inputExtr, duration0 = duration)
     }
 }
 

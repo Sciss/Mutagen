@@ -22,9 +22,11 @@ import com.alee.laf.checkbox.WebCheckBoxStyle
 import com.alee.laf.progressbar.WebProgressBarStyle
 import de.sciss.audiowidgets.Transport
 import de.sciss.desktop.impl.WindowImpl
-import de.sciss.desktop.{DialogSource, FileDialog, Menu, Window, WindowHandler}
+import de.sciss.desktop.{KeyStrokes, OptionPane, DialogSource, FileDialog, Menu, Window, WindowHandler}
 import de.sciss.file._
+import de.sciss.lucre.swing.defer
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
+import de.sciss.pdflitz
 import de.sciss.processor.Processor
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.swing.ServerStatusPanel
@@ -32,6 +34,7 @@ import de.sciss.synth.{Server, ServerConnection, Synth, SynthDef}
 import scopt.OptionParser
 
 import scala.swing.Swing._
+import scala.swing.event.Key
 import scala.swing.{Action, Button}
 import scala.util.{Failure, Success, Try}
 
@@ -72,7 +75,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
 
     val Some(mExport: Menu.Group) = menuFactory.get("file.export")
     mExport.add(
-      Menu.Item("audio-file", "Audio File...")
+      Menu.Item("audio-file", "Audio File..." -> (KeyStrokes.menu1 + Key.B))
     )
 
     new MainFrame
@@ -167,8 +170,19 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
     val butView = Button("View") {
       frame.selectedNodes.foreach { node =>
         val p = impl.SynthGraphViewImpl(node.chromosome.top)
-        new WindowImpl {
+        new WindowImpl { me =>
           def handler: WindowHandler = app.windowHandler
+
+          private def source = {
+            val dim = p.component.size
+            pdflitz.Generate.QuickDraw(dim) { g2 =>
+              val d = p.display
+              d.damageReport()  // otherwise `paintDisplay` will be a no-op!
+              d.paintDisplay(g2, dim)
+            }
+          }
+
+          bindMenu("file.export.table", new pdflitz.SaveAction(source :: Nil))
 
           title     = node.chromosome.hashCode.toHexString
           contents  = p.component
@@ -194,12 +208,25 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
 
     frame.bindMenu("file.export.audio-file", Action(null) {
       frame.selectedNodes.headOption.foreach { node =>
-        FileDialog.save().show(Some(frame.window)).foreach { f =>
-          implicit val g = frame.generation.global
-          import scala.concurrent.ExecutionContext.Implicits.global
-          val proc = Evaluation.bounce(node.chromosome, f)
-          proc.onFailure {
-            case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))
+        val initFile = frame.file.map { f =>
+          val d = f.parentOption
+          val c = s"${f.base}-${node.chromosome.hashCode.toHexString}.aif"
+          d.fold(file(c))(_ / c)
+        }
+        FileDialog.save(init = initFile, title = "Export Audio File").show(Some(frame.window)).foreach { f =>
+          import scala.concurrent.ExecutionContext.Implicits.{global => exec}
+          implicit val glob = frame.generation.global
+          Evaluation.getInputSpec(node.chromosome).foreach { case (inputExtr, inputSpec) =>
+            defer {
+              val initial = f"${inputSpec.numFrames / inputSpec.sampleRate}%1.3f"
+              val opt = OptionPane.textInput(message = "Duration [sec]:", initial = initial)
+              opt.show(Some(frame.window)).foreach { durStr =>
+                val proc = Evaluation.bounce(node.chromosome, f, duration = durStr.toDouble)
+                proc.onFailure {
+                  case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))
+                }
+              }
+            }
           }
         }
       }

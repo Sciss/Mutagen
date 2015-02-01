@@ -20,7 +20,7 @@ lazy val ugensVersion           = "1.13.1"
 
 lazy val strugatzkiVersion      = "2.9.0"
 
-lazy val mutaVersion            = "0.5.0"
+lazy val mutaVersion            = "0.6.0-SNAPSHOT"
 
 lazy val fileCacheVersion       = "0.3.2"
 
@@ -31,6 +31,8 @@ lazy val scalaColliderSwingVersion = "1.24.0"
 lazy val audioFileVersion       = "1.4.4"
 
 lazy val lucreSwingVersion      = "0.7.0"
+
+lazy val pdflitzVersion         = "1.2.0"
 
 lazy val webLaFVersion          = "1.28"
 
@@ -48,6 +50,7 @@ libraryDependencies ++= Seq(
   "de.sciss" %% "scalacolliderswing-core" % scalaColliderSwingVersion,
   "de.sciss" %% "scalaaudiofile"          % audioFileVersion,
   "de.sciss" %% "lucreswing"              % lucreSwingVersion,
+  "de.sciss" %% "pdflitz"                 % pdflitzVersion,
   "de.sciss" %  "weblaf"                  % webLaFVersion
 )
 

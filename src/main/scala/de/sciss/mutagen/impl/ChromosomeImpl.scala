@@ -332,7 +332,7 @@ object ChromosomeImpl {
     Array(-0.10048226f,0.64655834f)
   )
 
-  def bounce(c: Chromosome, audioF: File, inputSpec: AudioFileSpec, inputExtr: File)
+  def bounce(c: Chromosome, audioF: File, inputSpec: AudioFileSpec, inputExtr: File, duration0: Double = -1)
             (implicit exec: ExecutionContext): Processor[Any] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
@@ -349,8 +349,7 @@ object ChromosomeImpl {
     val bncCfg                      = Bounce.Config[S]
     bncCfg.group                    = objH :: Nil
     // val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
-    val numFrames                   = inputSpec.numFrames
-    val duration                    = numFrames.toDouble / inputSpec.sampleRate
+    val duration                    = if (duration0 > 0) duration0 else inputSpec.numFrames.toDouble / inputSpec.sampleRate
     bncCfg.server.nrtOutputPath     = audioF.path
     bncCfg.server.inputBusChannels  = 0
     bncCfg.server.outputBusChannels = 1

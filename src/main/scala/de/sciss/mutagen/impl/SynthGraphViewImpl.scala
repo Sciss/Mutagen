@@ -618,5 +618,6 @@ object SynthGraphViewImpl {
 
   trait Pane {
     def component: Component
+    def display: Display
   }
 }
