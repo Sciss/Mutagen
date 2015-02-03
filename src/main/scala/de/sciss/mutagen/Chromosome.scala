@@ -146,6 +146,16 @@ class Chromosome(val top: Top, val seed: Long) {
   override def toString = f"[$numVertices vertices; $numEdges edges]@${hashCode.toHexString}"
 
   def graphAsString: String = impl.ChromosomeImpl.graphAsString(this)
+
+  private lazy val _hashCode: Int = graph.hashCode()
+
+  override def hashCode(): Int = _hashCode
+
+  override def equals(obj: Any): Boolean = obj match {
+    case that: Chromosome => this.graph equals that.graph
+
+    case other => super.equals(obj)
+  }
 }
 
 class Evaluated(val chromosome: Chromosome, val fitness: Double) {

@@ -14,23 +14,23 @@ homepage           := Some(url("https://github.com/Sciss/" + name.value))
 
 licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
-lazy val soundProcessesVersion  = "2.14.1"
+lazy val soundProcessesVersion  = "2.15.0"
 
 lazy val ugensVersion           = "1.13.1"
 
 lazy val strugatzkiVersion      = "2.9.0"
 
-lazy val mutaVersion            = "0.6.0-SNAPSHOT"
+lazy val mutaVersion            = "0.6.0"
 
 lazy val fileCacheVersion       = "0.3.2"
 
 lazy val kollFlitzVersion       = "0.2.0"
 
-lazy val scalaColliderSwingVersion = "1.24.0"
+lazy val scalaColliderSwingVersion = "1.25.0"
 
 lazy val audioFileVersion       = "1.4.4"
 
-lazy val lucreSwingVersion      = "0.7.0"
+lazy val lucreSwingVersion      = "0.8.0"
 
 lazy val pdflitzVersion         = "1.2.0"
 
