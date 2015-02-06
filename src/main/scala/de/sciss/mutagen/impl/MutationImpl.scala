@@ -126,11 +126,11 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
     }
 
     val oldInletNames: Vec[String] = vOld match {
-      case Vertex.UGen(info) => info.inputs.map(_.arg)
+      case Vertex.UGen(info) => /* ChromosomeImpl.geArgs(info).map(_.name) */ info.inputs.map(_.arg)
       case _ => Vec.empty
     }
     val newInletNames: Vec[String] = vNew match {
-      case Vertex.UGen(info) => info.inputs.map(_.arg)
+      case Vertex.UGen(info) => /* ChromosomeImpl.geArgs(info).map(_.name) */ info.inputs.map(_.arg)
       case _ => Vec.empty
     }
 
@@ -159,7 +159,7 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
     val vertices    = top.vertices
 
     val candidates  = vertices.collect {
-      case v @ Vertex.UGen(spec) if spec.inputs.nonEmpty => v
+      case v @ Vertex.UGen(spec) if ChromosomeImpl.geArgs(spec).nonEmpty /* spec.inputs.nonEmpty */ => v
     }
 
     if (candidates.isEmpty) None else {

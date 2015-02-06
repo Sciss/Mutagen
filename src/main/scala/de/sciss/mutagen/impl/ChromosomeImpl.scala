@@ -48,10 +48,13 @@ object ChromosomeImpl {
     /* "A2K", */ "K2A" /* , "DC" */
   )
 
-  private val ugens0: Vec[UGenSpec] = UGenSpec.standardUGens.valuesIterator.filter { spec =>
+  // these have done-action side-effects but we require doNothing, so they are allowed
+  private val AddUGens = Set[String]("DetectSilence", "LFGauss", "Line", "Linen", "XLine")
+
+  private val ugens0: Vec[UGenSpec] = (UGenSpec.standardUGens.valuesIterator.filter { spec =>
     spec.attr.intersect(NoNoAttr).isEmpty && !RemoveUGens.contains(spec.name) && spec.outputs.nonEmpty &&
       !spec.rates.set.contains(demand)
-  } .toIndexedSeq
+  } ++ UGenSpec.standardUGens.valuesIterator.filter { spec => AddUGens.contains(spec.name) }).toIndexedSeq
 
   private val binUGens: Vec[UGenSpec] = {
     import BinaryOpUGen._
@@ -152,12 +155,22 @@ object ChromosomeImpl {
     v
   }
 
+  def geArgs(spec: UGenSpec): Vec[UGenSpec.Argument] = {
+    val res       = spec.args.filter { arg =>
+      arg.tpe match {
+        case UGenSpec.ArgumentType.Int => false
+        case UGenSpec.ArgumentType.GE(UGenSpec.SignalShape.DoneAction, _) => false
+        case _ => true
+      }
+    }
+    res
+  }
+
   def findIncompleteUGenInputs(t1: Top, v: Vertex.UGen): Vec[String] = {
     val spec      = v.info
     val edgeSet   = t1.edgeMap.getOrElse(v, Set.empty)
-    val argsFree  = spec.args.filter { arg => !edgeSet.exists(_.inlet == arg.name) }
-    val geArgs    = argsFree.filter(_.tpe != UGenSpec.ArgumentType.Int)
-    val inc       = geArgs.filterNot(_.defaults.contains(UndefinedRate))
+    val argsFree  = geArgs(spec).filter { arg => !edgeSet.exists(_.inlet == arg.name) }
+    val inc       = argsFree.filterNot(_.defaults.contains(UndefinedRate))
     inc.map(_.name)
   }
 
@@ -169,9 +182,8 @@ object ChromosomeImpl {
     // if the an argument is connected by getting the edges for the ugen and finding
     // an edge that uses the inlet name.
     val edgeSet = t1.edgeMap.getOrElse(v, Set.empty)
-    val argsFree = spec.args.filter { arg => !edgeSet.exists(_.inlet == arg.name) }
-    val geArgs  = argsFree.filter(_.tpe != UGenSpec.ArgumentType.Int)
-    val (hasDef, hasNoDef)          = geArgs.partition(_.defaults.contains(UndefinedRate))
+    val argsFree = geArgs(spec).filter { arg => !edgeSet.exists(_.inlet == arg.name) }
+    val (hasDef, hasNoDef)          = argsFree.partition(_.defaults.contains(UndefinedRate))
     val (useNotDef, _ /* useDef */) = hasDef.partition(_ => coin(nonDefaultProb))
     val findDef = hasNoDef ++ useNotDef
 
