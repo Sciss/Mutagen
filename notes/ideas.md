@@ -7,3 +7,6 @@
 - cross-over could with a certain probability also create children
   that are larger than the parents, in order to be able to better
   combine complementary sounds
+- mutationIter should be a range (min/max), in order to occasionally
+  allow more radical changes?
+  

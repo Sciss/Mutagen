@@ -43,12 +43,14 @@ object EvaluationImpl {
       }
     }
   }
+
+  private type CacheKey = (File, Int)
   private case class CacheValue(lastModified: Long, meta: File, feature: File)
 
   private val cCfg  = {
-    val c = filecache.Config[File, CacheValue]()
+    val c = filecache.Config[CacheKey, CacheValue]()
     c.capacity  = filecache.Limit(count = 10)
-    c.accept    = { (key, value) => key.lastModified() == value.lastModified }
+    c.accept    = { (key, value) => key._1.lastModified() == value.lastModified }
     c.space     = { (key, value) => value.meta.length() + value.feature.length() }
     c.evict     = { (key, value) => value.meta.delete() ; value.feature.delete() }
     c.build
@@ -58,16 +60,18 @@ object EvaluationImpl {
 
   import cacheP.executionContext
 
-  private def mkCacheValue(key: File): Future[CacheValue] = {
-    val inputSpec         = AudioFile.readSpec(key)
-    val inputMod          = key.lastModified()
-    require(inputSpec.numChannels == 1, s"Input file '${key.name}' must be mono but has ${inputSpec.numChannels} channels")
+  private def mkCacheValue(key: (File, Int)): Future[CacheValue] = {
+    val (f, numCoeffs) = key
+    val inputSpec         = AudioFile.readSpec(f)
+    val inputMod          = f.lastModified()
+    require(inputSpec.numChannels == 1, s"Input file '${f.name}' must be mono but has ${inputSpec.numChannels} channels")
     val exCfg             = FeatureExtraction.Config()
-    exCfg.audioInput      = key
+    exCfg.audioInput      = f
     val inputFeature      = File.createTemp(suffix = ".aif")
     exCfg.featureOutput   = inputFeature
     val inputExtr         = File.createTemp(suffix = "_feat.xml")
     exCfg.metaOutput      = Some(inputExtr)
+    exCfg.numCoeffs       = numCoeffs
     val futInputExtr      = FeatureExtraction(exCfg)
     futInputExtr.start()
     futInputExtr.map { _ =>
@@ -75,12 +79,13 @@ object EvaluationImpl {
     }
   }
 
-  def getInputSpec(c: Chromosome)(implicit global: Global): Future[(File, AudioFileSpec)] = {
-    val key       = global.input
+  def getInputSpec(eval: Evaluation)(implicit global: Global): Future[(File, AudioFileSpec)] = {
+    val f         = global.input
+    val key       = f -> eval.numCoeffs
     val futMeta   = cache.acquire(key)
     val res       = futMeta.map { v =>
       val inputExtr = v.meta
-      val inputSpec = blocking(AudioFile.readSpec(key))
+      val inputSpec = blocking(AudioFile.readSpec(f))
       (inputExtr, inputSpec)
     }
     res.onComplete { case _ => cache.release(key) }
@@ -88,7 +93,7 @@ object EvaluationImpl {
   }
 
   def apply(c: Chromosome, eval: Evaluation)(implicit global: Global): Double = {
-    val futEval = getInputSpec(c).flatMap { case (inputExtr, inputSpec) =>
+    val futEval = getInputSpec(eval).flatMap { case (inputExtr, inputSpec) =>
       c.evaluate(eval, inputSpec, inputExtr)
     }
     val fitness = Await.result(futEval, Duration(24, TimeUnit.SECONDS) /* Duration.Inf */).fitness

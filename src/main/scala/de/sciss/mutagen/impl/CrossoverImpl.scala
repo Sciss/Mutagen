@@ -17,6 +17,7 @@ package impl
 import de.sciss.kollflitz
 import de.sciss.muta.BreedingFunction
 import de.sciss.topology.Topology
+import Util.coin
 
 import scala.annotation.tailrec
 import scala.util.Random
@@ -35,20 +36,31 @@ object CrossoverImpl extends BreedingFunction[Chromosome, Global] {
     // - create two child chromosomes from split parents
     // - fix them by completing missing links
     // - for now: ignore min/max vertices
-    val res     = (0 until ((sz + 1) & ~1)).flatMap { i =>
-      val pIdx1   = rnd.nextInt(genome.size)
-      val pIdx2a  = rnd.nextInt(genome.size - 1)
-      val pIdx2   = if (pIdx2a < pIdx1) pIdx2a else pIdx2a + 1  // so pIdx1 != pIdx2
-      val posRel  = rnd.nextFloat()
-      val p1      = genome(pIdx1)
-      val p2      = genome(pIdx2)
+    val szH     = (sz + 1) / 2
+    val res     = (0 until szH).flatMap { i =>
+      // val pIdx1   = rnd.nextInt(genome.size)
+      // val pIdx2a  = rnd.nextInt(genome.size - 1)
+      // val pIdx2   = if (pIdx2a < pIdx1) pIdx2a else pIdx2a + 1  // so pIdx1 != pIdx2
+      val p1      = gs( (i << 1)      % gs.size) // genome(pIdx1)
+      val p2      = gs(((i << 1) + 1) % gs.size) // genome(pIdx2)
 
       val top1    = p1.top
       val top2    = p2.top
       val v1      = top1.vertices
       val v2      = top2.vertices
-      val pos1    = (posRel * v1.size - 1).toInt + 1
-      val pos2    = (posRel * v2.size - 1).toInt + 1
+
+      val (pos1, pos2) = if (coin(0.8)) {   // XXX TODO -- make that a parameter
+        val posRel  = rnd.nextFloat()
+        val _pos1   = (posRel * v1.size - 1).toInt + 1
+        val _pos2   = (posRel * v2.size - 1).toInt + 1
+        (_pos1, _pos2)
+      } else {
+        val posRel1 = rnd.nextFloat()
+        val _pos1   = (posRel1 * v1.size - 1).toInt + 1
+        val posRel2 = rnd.nextFloat()
+        val _pos2   = (posRel2 * v2.size - 1).toInt + 1
+        (_pos1, _pos2)
+      }
 
       val (head1, tail1)  = v1.splitAt(pos1)
       val (head2, tail2)  = v2.splitAt(pos2)

@@ -33,6 +33,8 @@ object MutagenSystem extends muta.System {
 
   type Global     = mutagen.Global
 
+  override def normalizeFitness = false
+
   // ---- types ----
 
   type Chromosome = mutagen.Chromosome

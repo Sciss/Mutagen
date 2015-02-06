@@ -375,10 +375,11 @@ object ChromosomeImpl {
       blocking {
         val af = AudioFile.openRead(audioF)
         try {
-          val b = af.buffer(512)
-          var i = 0L
+          val bufSize = 512
+          val b       = af.buffer(bufSize)
+          var i       = 0L
           while (i < af.numFrames) {
-            val len = math.min(12, af.numFrames - i).toInt
+            val len = math.min(bufSize, af.numFrames - i).toInt
             af.read(b, 0, len)
             var ch = 0
             while (ch < af.numChannels) {
@@ -408,10 +409,14 @@ object ChromosomeImpl {
     val genExtr             = genFolder / "gen_feat.xml"
 
     val normF   = genFolder / Strugatzki.NormalizeName
-    if (eval.normalize) blocking {
-      val normAF  = AudioFile.openWrite(normF, AudioFileSpec(numChannels = featNorms.length, sampleRate = 44100))
-      normAF.write(featNorms)
-      normAF.close()
+    if (eval.normalize) {
+      if (eval.numCoeffs != featNorms.length + 1)
+        throw new IllegalArgumentException(s"Normalize option requires numCoeffs == ${featNorms.length - 1}")
+      blocking {
+        val normAF  = AudioFile.openWrite(normF, AudioFileSpec(numChannels = featNorms.length, sampleRate = 44100))
+        normAF.write(featNorms)
+        normAF.close()
+      }
     }
     val featF   = File.createTemp(prefix = "gen_feat", suffix = ".aif")
 
@@ -420,6 +425,7 @@ object ChromosomeImpl {
       exCfg.audioInput      = audioF
       exCfg.featureOutput   = featF
       exCfg.metaOutput      = Some(genExtr)
+      exCfg.numCoeffs       = eval.numCoeffs
       val _ex               = FeatureExtraction(exCfg)
       _ex.start()
       //      _ex.onFailure {

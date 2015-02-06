@@ -14,13 +14,13 @@ homepage           := Some(url("https://github.com/Sciss/" + name.value))
 
 licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
+lazy val mutaVersion            = "0.7.0-SNAPSHOT"
+
 lazy val soundProcessesVersion  = "2.15.0"
 
 lazy val ugensVersion           = "1.13.1"
 
 lazy val strugatzkiVersion      = "2.9.0"
-
-lazy val mutaVersion            = "0.6.0"
 
 lazy val fileCacheVersion       = "0.3.2"
 
@@ -40,11 +40,11 @@ lazy val webLaFVersion          = "1.28"
 resolvers += "Typesafe Releases" at "https://repo.typesafe.com/typesafe/maven-releases/"
 
 libraryDependencies ++= Seq(
+  "de.sciss" %% "muta"                    % mutaVersion,
   "de.sciss" %% "soundprocesses-core"     % soundProcessesVersion,
   "de.sciss" %% "scalacolliderugens-core" % ugensVersion,
   "de.sciss" %  "scalacolliderugens-spec" % ugensVersion,
   "de.sciss" %% "strugatzki"              % strugatzkiVersion,
-  "de.sciss" %% "muta"                    % mutaVersion,
   "de.sciss" %% "filecache-mutable"       % fileCacheVersion,
   "de.sciss" %% "kollflitz"               % kollFlitzVersion,
   "de.sciss" %% "scalacolliderswing-core" % scalaColliderSwingVersion,

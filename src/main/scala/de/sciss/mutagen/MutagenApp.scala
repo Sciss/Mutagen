@@ -80,6 +80,10 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
 
     new MainFrame
 
+    sys.addShutdownHook {
+      Try(Server.default).toOption.foreach(_.dispose())
+    }
+
     opt.in.foreach { f =>
       val frOpt = openDocument(f)
       if (opt.auto) frOpt.foreach { fr =>
@@ -184,7 +188,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
 
           bindMenu("file.export.table", new pdflitz.SaveAction(source :: Nil))
 
-          title     = node.chromosome.hashCode.toHexString
+          title     = node.chromosome.hashCode().toHexString
           contents  = p.component
           size      = (400, 400)
           front()
@@ -210,18 +214,19 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
       frame.selectedNodes.headOption.foreach { node =>
         val initFile = frame.file.map { f =>
           val d = f.parentOption
-          val c = s"${f.base}-${node.chromosome.hashCode.toHexString}.aif"
+          val c = s"${f.base}-${node.chromosome.hashCode().toHexString}.aif"
           d.fold(file(c))(_ / c)
         }
         FileDialog.save(init = initFile, title = "Export Audio File").show(Some(frame.window)).foreach { f =>
           import scala.concurrent.ExecutionContext.Implicits.{global => exec}
           implicit val glob = frame.generation.global
-          Evaluation.getInputSpec(node.chromosome).foreach { case (inputExtr, inputSpec) =>
+          val eval = frame.evaluation
+          eval.getInputSpec().foreach { case (inputExtr, inputSpec) =>
             defer {
               val initial = f"${inputSpec.numFrames / inputSpec.sampleRate}%1.3f"
               val opt = OptionPane.textInput(message = "Duration [sec]:", initial = initial)
               opt.show(Some(frame.window)).foreach { durStr =>
-                val proc = Evaluation.bounce(node.chromosome, f, duration = durStr.toDouble)
+                val proc = Evaluation.bounce(node.chromosome, eval, f, duration = durStr.toDouble)
                 proc.onFailure {
                   case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))
                 }

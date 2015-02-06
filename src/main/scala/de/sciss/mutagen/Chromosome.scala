@@ -20,6 +20,7 @@ import de.sciss.synth.{GE, SynthGraph, UGenSpec}
 import de.sciss.topology.Topology
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.hashing.MurmurHash3
 
 object Vertex {
   object UGen {
@@ -133,7 +134,7 @@ case class Edge(sourceVertex: Vertex, targetVertex: Vertex, inlet: String) exten
 object Chromosome {
   def apply()(implicit random: util.Random, global: Global): Chromosome = impl.ChromosomeImpl.mkIndividual()
 }
-class Chromosome(val top: Top, val seed: Long) {
+class Chromosome(val top: Top, val seed: Long) extends Product {
   lazy val graph: SynthGraph = impl.ChromosomeImpl.mkSynthGraph(this, mono = false, removeNaNs = true)
 
   def evaluate(eval: Evaluation, inputSpec: AudioFileSpec, inputExtr: File)
@@ -143,19 +144,28 @@ class Chromosome(val top: Top, val seed: Long) {
   private lazy val numVertices  = top.vertices.size
   private lazy val numEdges     = top.edges   .size
 
-  override def toString = f"[$numVertices vertices; $numEdges edges]@${hashCode.toHexString}"
+  override def toString = f"[$numVertices vertices; $numEdges edges]@${hashCode().toHexString}"
 
   def graphAsString: String = impl.ChromosomeImpl.graphAsString(this)
 
-  private lazy val _hashCode: Int = graph.hashCode()
+  private lazy val _hashCode: Int = MurmurHash3.productHash(this)
 
   override def hashCode(): Int = _hashCode
 
   override def equals(obj: Any): Boolean = obj match {
-    case that: Chromosome => this.graph equals that.graph
+    case that: Chromosome => (this.graph == that.graph) && (this.seed == that.seed)
 
     case other => super.equals(obj)
   }
+
+  def productElement(n: Int): Any = n match {
+    case 0 => top
+    case 1 => seed
+  }
+
+  def productArity: Int = 2
+
+  def canEqual(that: Any): Boolean = that.isInstanceOf[Chromosome]
 }
 
 class Evaluated(val chromosome: Chromosome, val fitness: Double) {
