@@ -14,8 +14,10 @@
 package de.sciss.mutagen
 
 import java.awt.Color
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
+import javax.swing.JComponent
 
 import com.alee.laf.WebLookAndFeel
 import com.alee.laf.checkbox.WebCheckBoxStyle
@@ -38,6 +40,10 @@ import scala.swing.event.Key
 import scala.swing.{Action, Button}
 import scala.util.{Failure, Success, Try}
 
+/** Keyboard short-cuts:
+  *
+  * <tt>Ctrl-Return</tt> toggle play/stop
+  */
 object MutagenApp extends GeneticApp(MutagenSystem) { app =>
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
@@ -210,14 +216,19 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
     tp += butStats
     tp += bs
 
+    bs.peer.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStrokes.menu1 + Key.Enter, "mutagen.play-stop")
+    bs.peer.getActionMap.put("mutagen.play-stop", Action(null) {
+      if (synthOpt.isDefined) stopSynth() else playSynth()
+    } .peer)
+
     frame.bindMenu("file.export.audio-file", Action(null) {
       frame.selectedNodes.headOption.foreach { node =>
         val initFile = frame.file.map { f =>
           val d = f.parentOption
-          val c = s"${f.base}-${node.chromosome.hashCode().toHexString}.aif"
+          val c = s"${f.base}-${node.chromosome.hashCode().toHexString}"
           d.fold(file(c))(_ / c)
         }
-        FileDialog.save(init = initFile, title = "Export Audio File").show(Some(frame.window)).foreach { f =>
+        FileDialog.save(init = initFile, title = "Export Audio File").show(Some(frame.window)).foreach { f0 =>
           import scala.concurrent.ExecutionContext.Implicits.{global => exec}
           implicit val glob = frame.generation.global
           val eval = frame.evaluation
@@ -226,7 +237,17 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
               val initial = f"${inputSpec.numFrames / inputSpec.sampleRate}%1.3f"
               val opt = OptionPane.textInput(message = "Duration [sec]:", initial = initial)
               opt.show(Some(frame.window)).foreach { durStr =>
-                val proc = Evaluation.bounce(node.chromosome, eval, f, duration = durStr.toDouble)
+                val fAudio = f0.replaceExt(".aif")
+                val proc = Evaluation.bounce(node.chromosome, eval, fAudio, duration = durStr.toDouble)
+                proc.onSuccess {
+                  case _ =>
+                    val fScala = f0.replaceExt(".scala")
+                    if (!fScala.exists()) {
+                      val fOut = new FileOutputStream(fScala)
+                      fOut.write(node.chromosome.graphAsString.getBytes("UTF-8"))
+                      fOut.close()
+                    }
+                }
                 proc.onFailure {
                   case ex => DialogSource.Exception(ex -> "Bounce").show(Some(frame.window))
                 }
