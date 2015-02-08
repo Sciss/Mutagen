@@ -20,7 +20,7 @@ import scala.util.Random
 
 case class Breeding(elitism: SelectionSize = SelectionNumber(4),
                     crossoverWeight: SelectionPercent = SelectionPercent(50),
-                    mutationIter: Int = 2)
+                    mutationMin: Int = 2, mutationMax: Int = 4)
   extends muta.Breeding[Chromosome, Global] with muta.impl.BreedingImpl[Chromosome, Global] {
 
   /** Override to allow a population to grow or shrink dynamically if the process
@@ -33,5 +33,5 @@ case class Breeding(elitism: SelectionSize = SelectionNumber(4),
 
   def crossover: BreedingFunction[Chromosome, Global] = impl.CrossoverImpl
 
-  val mutation: BreedingFunction[Chromosome, Global] = new impl.MutationImpl(mutationIter)
+  val mutation: BreedingFunction[Chromosome, Global] = new impl.MutationImpl(mutationMin, mutationMax)
 }

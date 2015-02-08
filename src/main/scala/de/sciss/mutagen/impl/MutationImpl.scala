@@ -14,6 +14,7 @@
 package de.sciss.mutagen
 package impl
 
+import de.sciss.kollflitz
 import de.sciss.muta.BreedingFunction
 import de.sciss.mutagen.MutagenSystem.Global
 
@@ -22,7 +23,7 @@ import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.util.Random
 
 object MutationImpl {
-  private val stats = Array.fill(5)(0)
+  private val stats = Array.fill(7)(0)
 
   def printStats(): Unit = println(stats.mkString(", "))
 
@@ -49,33 +50,45 @@ object MutationImpl {
     (succ, v)
   }
 }
-class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Global] {
+class MutationImpl(mutMin: Int, mutMax: Int) extends BreedingFunction[Chromosome, Global] {
   import MutationImpl._
 
   def apply(genome: Vec[Chromosome], sz: Int, glob: Global, rnd: Random): Vec[Chromosome] = {
     implicit val random = rnd
     implicit val global = glob
 
+    val mutationIter = Util.rrand(mutMin, mutMax)
+
     @tailrec def loop(iter: Int, pred: Vec[Chromosome]): Vec[Chromosome] = if (iter >= mutationIter) pred else {
       var res = Vector.empty[Chromosome]
       while (res.size < sz) {
         val picked = genome(res.size % genome.size)
-        res = (rnd.nextInt(5): @switch) match {
+        res = (rnd.nextInt(6): @switch) match {
           case 0 => addVertex   (picked).fold(res)(res :+ _)
           case 1 => removeVertex(picked).fold(res)(res :+ _)
           case 2 => res :+ changeVertex(picked)
           case 3 => changeEdge  (picked).fold(res)(res :+ _)
           case 4 => swapEdge    (picked).fold(res)(res :+ _)
-          //        case 2 => addEdge()
-          //        case 3 => removeEdge()
-          //        case 4 => changeEdge()
-          //        case 5 => changeConstant()
+          case 5 => splitVertex (picked).fold(res)(res :+ _)
+          case 6 => mergeVertex (picked).fold(res)(res :+ _)
         }
       }
       loop(iter + 1, res)
     }
 
     loop(0, genome)
+  }
+
+  private def roulette[A](in: Vec[(A, Int)])(implicit random: util.Random): A = {
+    val sum         = in.map(_._2).sum
+    val norm        = in.zipWithIndex.map { case ((c, f), j) => (j, f / sum) }
+    val sorted      = norm.sortBy(_._2)
+    val accum       = sorted.scanLeft(0.0) { case (a, (_, f)) => a + f } .tail
+    val roul        = random.nextDouble() // * max
+    val idxS        = accum.indexWhere(_ > roul)
+    val idx         = if (idxS >= 0) sorted(idxS)._1 else in.size - 1
+    val (chosen, _) = in(idx)
+    chosen
   }
 
   private def addVertex(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
@@ -200,7 +213,84 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
     }
   }
 
-  private def checkComplete(succ: Top, message: => String): Unit = {
+  // splits a vertex. candidates are vertices with out degree >= 2.
+  // candidate is chosen using roulette algorithm (thus more likely,
+  // the higher the out degree).
+  private def splitVertex(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val verticesIn  = top.vertices
+    val numVertices = verticesIn.size
+    if (numVertices >= global.maxNumVertices) return None
+
+    val weighted  = verticesIn.flatMap { v =>
+      val set = top.edges.filter(_.targetVertex == v)
+      val sz  = set.size
+      if (sz > 2) Some(set -> sz) else None
+    }
+    if (weighted.isEmpty) None else {
+      val edges = roulette(weighted)
+      import kollflitz.RandomOps._
+      val edgesS: Vec[Edge] = edges.toVector.scramble()
+      val (_, edgesMove) = edgesS.splitAt(edgesS.size/2)
+      val vertexOld = edges.head.targetVertex
+      val vertexNew = vertexOld.copy()
+      val top1 = (top /: edgesMove)(_ removeEdge _)
+      val top2 = top1.addVertex(vertexNew)
+      val top3 = (top2 /: edgesMove) { (t, eOld) =>
+        val eNew = eOld.copy(targetVertex = vertexNew)
+        t.addEdge(eNew).get._1
+      }
+      val succ = (top3 /: top.edgeMap.getOrElse(vertexOld, Set.empty)) { (t, eOld) =>
+        val eNew = eOld.copy(sourceVertex = vertexNew)
+        t.addEdge(eNew).get._1
+      }
+      val res = new Chromosome(succ, seed = random.nextLong())
+      checkComplete(succ, s"splitVertex()")
+      stats(5) += 1
+      Some(res)
+    }
+  }
+
+  // merges two vertices of the same type
+  private def mergeVertex(pred: Chromosome)(implicit random: Random, global: Global): Option[Chromosome] = {
+    val top         = pred.top
+    val verticesIn  = top.vertices
+    val numVertices = verticesIn.size
+    if (numVertices <= global.minNumVertices) return None
+
+    import kollflitz.RandomOps._
+    val it = verticesIn.scramble().tails.flatMap {
+      case head +: tail =>
+        val partners = head match {
+          case Vertex.Constant(_) => tail.filter {
+            case Vertex.Constant(_) => true // any two constants will do
+            case _ => false
+          }
+          case Vertex.UGen(info) => tail.filter {
+            case Vertex.UGen(i1) => i1.name == info.name
+            case _ => false
+          }
+        }
+        partners.map(head -> _)
+
+      case _ => None
+    }
+    if (it.isEmpty) None else {
+      val (v1, v2)  = it.next()
+      val edgesOld  = top.edges.filter(_.targetVertex == v2)
+      val top1      = (top  /: edgesOld)(_ removeEdge _)
+      val succ      = (top1 /: edgesOld) { (t, eOld) =>
+        val eNew = eOld.copy(targetVertex = v1)
+        if (t.canAddEdge(eNew)) t.addEdge(eNew).get._1 else t
+      }
+      val res = new Chromosome(succ, seed = random.nextLong())
+      checkComplete(succ, s"mergeVertex()")
+      stats(6) += 1
+      Some(res)
+    }
+  }
+
+  private def checkComplete(succ: Top, message: => String): Unit =
     succ.vertices.foreach {
       case v: Vertex.UGen =>
         val inc = ChromosomeImpl.findIncompleteUGenInputs(succ, v)
@@ -211,7 +301,6 @@ class MutationImpl(mutationIter: Int) extends BreedingFunction[Chromosome, Globa
         }
       case _ =>
     }
-  }
 
   /*
     ways to mutate:

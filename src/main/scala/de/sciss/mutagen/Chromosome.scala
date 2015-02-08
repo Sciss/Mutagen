@@ -121,6 +121,7 @@ object Vertex {
   }
 }
 sealed trait Vertex {
+  /** Creates an structurally identical copy, but wrapped in a new vertex (object identity). */
   def copy(): Vertex
 
   def boxName: String

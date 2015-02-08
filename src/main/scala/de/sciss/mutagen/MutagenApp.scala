@@ -118,10 +118,10 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
 
             case Failure(ex) =>
               ex.printStackTrace()
-//              import scala.sys.process._
-//              Console.err.println("Restarting...")
-//              Seq("/bin/sh", "mutagen-auto").run()
-//              sys.exit()
+              import scala.sys.process._
+              Console.err.println("Restarting...")
+              Seq("/bin/sh", "mentasm" /* "mutagen-auto" */).run()
+              sys.exit()
           }
         }
 
