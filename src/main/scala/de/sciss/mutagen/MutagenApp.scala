@@ -49,7 +49,7 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
   override protected def useInternalFrames = false
 
   final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
-                           autoSeed: Boolean = false)
+                           autoSeed: Boolean = false, self: String = "mutagen-auto")
 
   private def parseArgs(): Options = {
     val parser  = new OptionParser[Options]("mutagen") {
@@ -59,6 +59,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
         (arg, res) => res.copy(autoSteps = arg) }
       opt[Unit]('s', "seed") text "Use changing random seeds in auto run" action {
         (_, res) => res.copy(autoSeed = true) }
+      opt[String]('l', "self") text "Shell script to start upon error" action {
+        (arg, res) => res.copy(self = arg) }
     }
 
     parser.parse(args, Options()).fold(sys.exit(1))(identity)
@@ -95,37 +97,52 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
       if (opt.auto) frOpt.foreach { fr =>
         val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
         import scala.concurrent.ExecutionContext.Implicits.global
-        def iter(): Unit = {
+
+        def fitnessSum() = fr.genome.map(_._2).sum
+
+        def iter(prevFitness: Double): Unit = {
           if (opt.autoSeed) {
             val globOld  = fr.generation.global
             val seed     = util.Random.nextInt() // based on date
             val globNew  = globOld.copy(seed = seed)
             fr.generation = fr.generation.copy(global = globNew)
           }
+
+          def fail(): Unit = {
+            import scala.sys.process._
+            Console.err.println("Restarting...")
+            Seq("/bin/sh", opt.self).run()
+            sys.exit()
+          }
+
           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
             case Success(_) =>
-              println("Backing up...")
-              import scala.sys.process._
-              val child  = fileFormat.format(new Date(f.lastModified()))
-              val out    = f.parentOption.fold(file(child))(_ / child)
-              Seq("mv", f.path, out.path).!
-              println("Saving...")
-              fr.save(f).foreach { _ =>
-                iter()
+              val succFitness = fitnessSum()
+              println(s"New total fitness is $succFitness")
+              if (succFitness < prevFitness) {
+                println("Ouch. Fitness shrinking. I think we hit a memory corruption problem!")
+                fail()
+              } else {
+                println("Backing up...")
+                import scala.sys.process._
+                val child  = fileFormat.format(new Date(f.lastModified()))
+                val out    = f.parentOption.fold(file(child))(_ / child)
+                Seq("mv", f.path, out.path).!
+                println("Saving...")
+                fr.save(f).foreach { _ =>
+                  iter(succFitness)
+                }
               }
 
             case Failure(Processor.Aborted()) => // then stop
 
             case Failure(ex) =>
               ex.printStackTrace()
-              import scala.sys.process._
-              Console.err.println("Restarting...")
-              Seq("/bin/sh", "mentasm" /* "mutagen-auto" */).run()
-              sys.exit()
+              fail()
           }
         }
 
-        iter()
+        iter(fitnessSum())
       }
     }
   }
