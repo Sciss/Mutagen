@@ -44,9 +44,10 @@ import scala.util.{Failure, Success, Try}
   *
   * <tt>Ctrl-Return</tt> toggle play/stop
   */
-object MutagenApp extends GeneticApp(MutagenSystem) { app =>
+object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
   override protected def useNimbus         = false
   override protected def useInternalFrames = false
+  override protected def useLogWindow      = false
 
   final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
                            autoSeed: Boolean = false, self: String = "mutagen-auto")
@@ -101,6 +102,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
         def fitnessSum() = fr.genome.map(_._2).sum
 
         def iter(prevFitness: Double): Unit = {
+          println(s"Iteration begins with fitness $prevFitness")
+
           if (opt.autoSeed) {
             val globOld  = fr.generation.global
             val seed     = util.Random.nextInt() // based on date
@@ -118,9 +121,8 @@ object MutagenApp extends GeneticApp(MutagenSystem) { app =>
           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
             case Success(_) =>
               val succFitness = fitnessSum()
-              println(s"New total fitness is $succFitness")
               if (succFitness < prevFitness) {
-                println("Ouch. Fitness shrinking. I think we hit a memory corruption problem!")
+                println(s"Ouch. Fitness shrinking ($succFitness). I think we hit a memory corruption problem!")
                 fail()
               } else {
                 println("Backing up...")
