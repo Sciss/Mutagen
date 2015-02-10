@@ -50,7 +50,7 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
   override protected def useLogWindow      = false
 
   final case class Options(in: Option[File] = None, auto: Boolean = false, autoSteps: Int = 50,
-                           autoSeed: Boolean = false, self: String = "mutagen-auto")
+                           autoSeed: Boolean = false, self: String = "mutagen-auto", maxShrink: Double = 0.98)
 
   private def parseArgs(): Options = {
     val parser  = new OptionParser[Options]("mutagen") {
@@ -62,6 +62,8 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
         (_, res) => res.copy(autoSeed = true) }
       opt[String]('l', "self") text "Shell script to start upon error" action {
         (arg, res) => res.copy(self = arg) }
+      opt[Double]('m', "max-shrink") text "Maximum fitness shrinking factor before aborting" action {
+        (arg, res) => res.copy(maxShrink = arg) }
     }
 
     parser.parse(args, Options()).fold(sys.exit(1))(identity)
@@ -120,19 +122,21 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
 
           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
             case Success(_) =>
-              val succFitness = fitnessSum()
-              if (succFitness < prevFitness) {
-                println(s"Ouch. Fitness shrinking ($succFitness). I think we hit a memory corruption problem!")
-                fail()
-              } else {
-                println("Backing up...")
-                import scala.sys.process._
-                val child  = fileFormat.format(new Date(f.lastModified()))
-                val out    = f.parentOption.fold(file(child))(_ / child)
-                Seq("mv", f.path, out.path).!
-                println("Saving...")
-                fr.save(f).foreach { _ =>
-                  iter(succFitness)
+              defer {
+                val succFitness = fitnessSum()
+                if (succFitness < prevFitness * opt.maxShrink) {
+                  println(s"Ouch. Fitness shrinking ($succFitness). I think we hit a memory corruption problem!")
+                  fail()
+                } else {
+                  println("Backing up...")
+                  import scala.sys.process._
+                  val child  = fileFormat.format(new Date(f.lastModified()))
+                  val out    = f.parentOption.fold(file(child))(_ / child)
+                  Seq("mv", f.path, out.path).!
+                  println("Saving...")
+                  fr.save(f).foreach { _ =>
+                    iter(succFitness)
+                  }
                 }
               }
 

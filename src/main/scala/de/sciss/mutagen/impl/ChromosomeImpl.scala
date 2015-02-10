@@ -362,11 +362,13 @@ object ChromosomeImpl {
     bncCfg.group                    = objH :: Nil
     // val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
     val duration                    = if (duration0 > 0) duration0 else inputSpec.numFrames.toDouble / inputSpec.sampleRate
-    bncCfg.server.nrtOutputPath     = audioF.path
-    bncCfg.server.inputBusChannels  = 0
-    bncCfg.server.outputBusChannels = 1
-    bncCfg.server.blockSize         = 64  // keep it compatible to real-time
-    bncCfg.server.sampleRate        = inputSpec.sampleRate.toInt
+    val sCfg = bncCfg.server
+    sCfg.nrtOutputPath     = audioF.path
+    sCfg.inputBusChannels  = 0
+    sCfg.outputBusChannels = 1
+    sCfg.wireBuffers       = 1024 // higher than default
+    sCfg.blockSize         = 64   // keep it compatible to real-time
+    sCfg.sampleRate        = inputSpec.sampleRate.toInt
     // bc.init : (S#Tx, Server) => Unit
     bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
     val bnc0  = Bounce[S, S].apply(bncCfg)
