@@ -358,20 +358,20 @@ object ChromosomeImpl {
       tx.newHandle(procObj)
     }
     import WorkspaceHandle.Implicits._
-    val bncCfg                      = Bounce.Config[S]
-    bncCfg.group                    = objH :: Nil
-    // val audioF                      = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
-    val duration                    = if (duration0 > 0) duration0 else inputSpec.numFrames.toDouble / inputSpec.sampleRate
-    val sCfg = bncCfg.server
-    sCfg.nrtOutputPath     = audioF.path
-    sCfg.inputBusChannels  = 0
-    sCfg.outputBusChannels = 1
-    sCfg.wireBuffers       = 1024 // higher than default
-    sCfg.blockSize         = 64   // keep it compatible to real-time
-    sCfg.sampleRate        = inputSpec.sampleRate.toInt
+    val bncCfg              = Bounce.Config[S]
+    bncCfg.group            = objH :: Nil
+    // val audioF           = File.createTemp(prefix = "muta_bnc", suffix = ".aif")
+    val duration            = if (duration0 > 0) duration0 else inputSpec.numFrames.toDouble / inputSpec.sampleRate
+    val sCfg                = bncCfg.server
+    sCfg.nrtOutputPath      = audioF.path
+    sCfg.inputBusChannels   = 0
+    sCfg.outputBusChannels  = 1
+    sCfg.wireBuffers        = 1024 // higher than default
+    sCfg.blockSize          = 64   // keep it compatible to real-time
+    sCfg.sampleRate         = inputSpec.sampleRate.toInt
     // bc.init : (S#Tx, Server) => Unit
-    bncCfg.span   = Span(0L, (duration * Timeline.SampleRate).toLong)
-    val bnc0  = Bounce[S, S].apply(bncCfg)
+    bncCfg.span             = Span(0L, (duration * Timeline.SampleRate).toLong)
+    val bnc0                = Bounce[S, S].apply(bncCfg)
     bnc0.start()
     bnc0
   }

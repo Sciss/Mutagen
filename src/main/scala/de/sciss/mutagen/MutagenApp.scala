@@ -71,6 +71,13 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
 
   val opt = parseArgs()
 
+  private val logHeader = new SimpleDateFormat("[d MMM yyyy, HH:mm''ss.SSS] 'Mutagen' - ", Locale.US)
+  var showLog           = true
+
+  // XXX TODO -- should be persisted in a file
+  private def log(what: => String): Unit =
+    if (showLog) println(logHeader.format(new Date()) + what)
+
   protected override def init(): Unit = {
     // println(MutagenSystem.chromosomeClassTag)
     WebLookAndFeel.install()
@@ -101,10 +108,14 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
         val fileFormat = new SimpleDateFormat(s"'${f.base}'-yyMMdd'_'HHmmss'.json'", Locale.US)
         import scala.concurrent.ExecutionContext.Implicits.global
 
-        def fitnessSum() = fr.genome.map(_._2).sum
+        def fitnessSum()  = fr.genome.map(_._2).sum
+        def bestFitness() = {
+          val g = fr.genome
+          if (fr.breeding.elitism(g.size) < 1) 0.0 else fr.genome.maxBy(_._2)._2
+        }
 
-        def iter(prevFitness: Double): Unit = {
-          println(s"Iteration begins with fitness $prevFitness")
+        def iter(prevTotalFitness: Double, prevBestFitness: Double): Unit = {
+          log(f"Iteration begins with fitness sum $prevTotalFitness%1.3f / max $prevBestFitness%1.3f")
 
           if (opt.autoSeed) {
             val globOld  = fr.generation.global
@@ -114,28 +125,34 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
           }
 
           def fail(): Unit = {
-            import scala.sys.process._
-            Console.err.println("Restarting...")
-            Seq("/bin/sh", opt.self).run()
-            sys.exit()
+            // import scala.sys.process._
+            // Console.err.println("Restarting...")
+            log("Exiting with error code")
+            // Seq("/bin/sh", opt.self).run()
+            // sys.exit()
+            sys.exit(1)
           }
 
           fr.iterate(n = opt.autoSteps, quiet = true).onComplete {
             case Success(_) =>
               defer {
-                val succFitness = fitnessSum()
-                if (succFitness < prevFitness * opt.maxShrink) {
-                  println(s"Ouch. Fitness shrinking ($succFitness). I think we hit a memory corruption problem!")
+                val succTotalFitness  = fitnessSum()
+                val succBestFitness   = bestFitness()
+                if (succTotalFitness < prevTotalFitness * opt.maxShrink) {
+                  log(f"Ouch. Fitness sum shrinking ($succTotalFitness%1.3f)!")
+                  fail()
+                } else if (succBestFitness < prevBestFitness) {
+                  log(f"Ouch. Best fitness shrinking ($succBestFitness%1.3f)!")
                   fail()
                 } else {
-                  println("Backing up...")
+                  log("Backing up...")
                   import scala.sys.process._
                   val child  = fileFormat.format(new Date(f.lastModified()))
                   val out    = f.parentOption.fold(file(child))(_ / child)
                   Seq("mv", f.path, out.path).!
-                  println("Saving...")
+                  log("Saving...")
                   fr.save(f).foreach { _ =>
-                    iter(succFitness)
+                    iter(prevTotalFitness = succTotalFitness, prevBestFitness = succBestFitness)
                   }
                 }
               }
@@ -148,7 +165,7 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
           }
         }
 
-        iter(fitnessSum())
+        iter(prevTotalFitness = fitnessSum(), prevBestFitness = bestFitness())
       }
     }
   }

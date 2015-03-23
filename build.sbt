@@ -4,9 +4,9 @@ version            := "0.1.0-SNAPSHOT"
 
 organization       := "de.sciss"
 
-scalaVersion       := "2.11.5"
+scalaVersion       := "2.11.6"
 
-crossScalaVersions := Seq("2.11.5", "2.10.4")
+crossScalaVersions := Seq("2.11.6", "2.10.5")
 
 description        := "An experiment with genetic programming and ScalaCollider"
 
@@ -16,7 +16,7 @@ licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.
 
 lazy val mutaVersion            = "0.7.0-SNAPSHOT"
 
-lazy val soundProcessesVersion  = "2.15.0"
+lazy val soundProcessesVersion  = "2.17.1-SNAPSHOT"
 
 lazy val ugensVersion           = "1.13.1"
 
@@ -30,9 +30,9 @@ lazy val scalaColliderSwingVersion = "1.25.0"
 
 lazy val audioFileVersion       = "1.4.4"
 
-lazy val lucreSwingVersion      = "0.8.0"
+lazy val lucreSwingVersion      = "0.9.1"
 
-lazy val pdflitzVersion         = "1.2.0"
+lazy val pdflitzVersion         = "1.2.1"
 
 lazy val webLaFVersion          = "1.28"
 
