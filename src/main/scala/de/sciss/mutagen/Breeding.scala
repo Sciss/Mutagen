@@ -16,8 +16,6 @@ package de.sciss.mutagen
 import de.sciss.muta
 import de.sciss.muta.{BreedingFunction, SelectionPercent, SelectionNumber, SelectionSize}
 
-import scala.util.Random
-
 case class Breeding(elitism: SelectionSize = SelectionNumber(4),
                     crossoverWeight: SelectionPercent = SelectionPercent(50),
                     mutationMin: Int = 2, mutationMax: Int = 4)

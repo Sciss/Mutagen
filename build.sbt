@@ -60,7 +60,7 @@ scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "ut
 
 target  in assembly := baseDirectory.value
 
-jarName in assembly := s"${name.value}.jar"
+assemblyJarName in assembly := s"${name.value}.jar"
 
 // ---- publishing ----
 

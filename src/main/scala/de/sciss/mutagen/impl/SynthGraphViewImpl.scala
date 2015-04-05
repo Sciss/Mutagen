@@ -43,7 +43,7 @@ object SynthGraphViewImpl {
     // private final val COL_PORTS     = "ports"
     private val ACTION_LAYOUT1 = "layout1"
     private val ACTION_LAYOUT2 = "layout2"
-    private final val LAYOUT_TIME   = 50
+    // private final val LAYOUT_TIME   = 50
 
     private final class Impl(top: Top) extends PaneImpl {
 
@@ -301,13 +301,13 @@ object SynthGraphViewImpl {
 
     private final val colrSel     = Style.selectionColor
     private final val strkColrOk  = ColorLib.getColor(192, 192, 192)
-    private final val strkColrEdit= colrSel
-    private final val strkColrErr = ColorLib.getColor(240,   0,   0)
+    // private final val strkColrEdit= colrSel
+    // private final val strkColrErr = ColorLib.getColor(240,   0,   0)
     private final val fillColr    = Style.boxColor
-    private final val textColrEdit= strkColrEdit
+    // private final val textColrEdit= strkColrEdit
     private final val textColr    = Color.black
     private final val strkShpOk   = new BasicStroke(1f)
-    private final val strkShpPend = new BasicStroke(1f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, Array[Float](6, 4), 0f)
+    // private final val strkShpPend = new BasicStroke(1f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, Array[Float](6, 4), 0f)
     private final val portColr    = Style.portColor
   }
   final class BoxRenderer(d: PaneImpl) extends AbstractShapeRenderer {
