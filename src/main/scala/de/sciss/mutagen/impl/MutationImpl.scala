@@ -59,11 +59,12 @@ class MutationImpl(mutMin: Int, mutMax: Int) extends BreedingFunction[Chromosome
 
     val mutationIter = Util.rrand(mutMin, mutMax)
 
+    // XXX bullshit --- mutationIter has not influence, because `pred` is not used!!!
     @tailrec def loop(iter: Int, pred: Vec[Chromosome]): Vec[Chromosome] = if (iter >= mutationIter) pred else {
       var res = Vector.empty[Chromosome]
       while (res.size < sz) {
         val picked = genome(res.size % genome.size)
-        res = (rnd.nextInt(6): @switch) match {
+        res = (rnd.nextInt(7): @switch) match {
           case 0 => addVertex   (picked).fold(res)(res :+ _)
           case 1 => removeVertex(picked).fold(res)(res :+ _)
           case 2 => res :+ changeVertex(picked)
