@@ -2,7 +2,7 @@
  *  EvaluationImpl.scala
  *  (Mutagen)
  *
- *  Copyright (c) 2014-2015 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2014-2016 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -88,7 +88,7 @@ object EvaluationImpl {
       val inputSpec = blocking(AudioFile.readSpec(f))
       (inputExtr, inputSpec)
     }
-    res.onComplete { case _ => cache.release(key) }
+    res.onComplete(_ => cache.release(key))
     res
   }
 

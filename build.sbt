@@ -1,40 +1,23 @@
 name               := "Mutagen"
-
-version            := "0.1.0-SNAPSHOT"
-
+version            := "0.1.0"
 organization       := "de.sciss"
-
-scalaVersion       := "2.11.6"
-
-crossScalaVersions := Seq("2.11.6", "2.10.5")
-
+scalaVersion       := "2.11.8"
+crossScalaVersions := Seq("2.11.8", "2.10.6")
 description        := "An experiment with genetic programming and ScalaCollider"
-
 homepage           := Some(url("https://github.com/Sciss/" + name.value))
-
 licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt"))
 
-lazy val mutaVersion            = "0.7.0-SNAPSHOT"
-
-lazy val soundProcessesVersion  = "2.17.1-SNAPSHOT"
-
-lazy val ugensVersion           = "1.13.1"
-
-lazy val strugatzkiVersion      = "2.9.0"
-
-lazy val fileCacheVersion       = "0.3.2"
-
-lazy val kollFlitzVersion       = "0.2.0"
-
-lazy val scalaColliderSwingVersion = "1.25.0"
-
-lazy val audioFileVersion       = "1.4.4"
-
-lazy val lucreSwingVersion      = "0.9.1"
-
-lazy val pdflitzVersion         = "1.2.1"
-
-lazy val webLaFVersion          = "1.28"
+lazy val mutaVersion               = "0.7.0"
+lazy val soundProcessesVersion     = "3.8.0"
+lazy val ugensVersion              = "1.16.0"
+lazy val strugatzkiVersion         = "2.13.0"
+lazy val fileCacheVersion          = "0.3.3"
+lazy val kollFlitzVersion          = "0.2.0"
+lazy val scalaColliderSwingVersion = "1.31.0"
+lazy val audioFileVersion          = "1.4.4"
+lazy val lucreSwingVersion         = "1.4.0"
+lazy val pdflitzVersion            = "1.2.1"
+lazy val subminVersion             = "0.2.1"
 
 // required for Play JSON
 resolvers += "Typesafe Releases" at "https://repo.typesafe.com/typesafe/maven-releases/"
@@ -51,16 +34,23 @@ libraryDependencies ++= Seq(
   "de.sciss" %% "scalaaudiofile"          % audioFileVersion,
   "de.sciss" %% "lucreswing"              % lucreSwingVersion,
   "de.sciss" %% "pdflitz"                 % pdflitzVersion,
-  "de.sciss" %  "weblaf"                  % webLaFVersion
+  "de.sciss" %  "submin"                  % subminVersion
 )
 
-scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture")
+scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture", "-Xlint")
 
 // ---- assembly ----
 
 target  in assembly := baseDirectory.value
 
 assemblyJarName in assembly := s"${name.value}.jar"
+
+assemblyMergeStrategy in assembly := {
+  case PathList("org", "w3c", "dom", "events", xs @ _*) => MergeStrategy.first // bloody Apache Batik
+  case x =>
+    val old = (assemblyMergeStrategy in assembly).value
+    old(x)
+}
 
 // ---- publishing ----
 

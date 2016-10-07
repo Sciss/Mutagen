@@ -1,3 +1,16 @@
+/*
+ *  ChromosomeImpl.scala
+ *  (Mutagen)
+ *
+ *  Copyright (c) 2014-2016 Hanns Holger Rutz. All rights reserved.
+ *
+ *  This software is published under the GNU General Public License v3+
+ *
+ *
+ *  For further information, please contact Hanns Holger Rutz at
+ *  contact@sciss.de
+ */
+
 package de.sciss.mutagen
 package impl
 
@@ -9,19 +22,19 @@ import de.sciss.mutagen.Util._
 import de.sciss.numbers
 import de.sciss.processor.Processor
 import de.sciss.span.Span
-import de.sciss.strugatzki.{Strugatzki, FeatureCorrelation, FeatureExtraction}
+import de.sciss.strugatzki.{FeatureCorrelation, FeatureExtraction, Strugatzki}
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
-import de.sciss.synth.proc.{Timeline, Bounce, WorkspaceHandle, Obj, Proc, ExprImplicits}
+import de.sciss.synth.proc.{Bounce, Proc, TimeRef, WorkspaceHandle}
 import de.sciss.synth.ugen.{BinaryOpUGen, SampleRate}
-import de.sciss.synth.{audio, SynthGraph, ugen, GE, demand, UndefinedRate, UGenSpec}
+import de.sciss.synth.{GE, SynthGraph, UGenSource, UGenSpec, UndefinedRate, audio, demand, ugen}
 import de.sciss.topology.Topology
 import play.api.libs.json
-import play.api.libs.json.{JsArray, JsObject, JsError, JsSuccess, JsString, JsNumber, JsResult, JsValue}
+import play.api.libs.json.{JsArray, JsError, JsNumber, JsObject, JsResult, JsString, JsSuccess, JsValue}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{IndexedSeq => Vec}
-import scala.concurrent.{ExecutionContext, TimeoutException, Await, Future, blocking}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
 import scala.util.Random
 
 object ChromosomeImpl {
@@ -233,7 +246,7 @@ object ChromosomeImpl {
   }
 
   def mkIndividual()(implicit random: Random, global: Global): Chromosome = {
-    import global.{minNumVertices, maxNumVertices}
+    import global.{maxNumVertices, minNumVertices}
     val num = rrand(minNumVertices, maxNumVertices)
 
     @tailrec def loopGraph(pred: Top): Top =
@@ -280,7 +293,7 @@ object ChromosomeImpl {
                       case UGenSpec.ArgumentValue.Inf           => ugen.Constant(Float.PositiveInfinity)
                       case UGenSpec.ArgumentValue.Int(v)        => ugen.Constant(v)
                       case UGenSpec.ArgumentValue.Nyquist       => SampleRate.ir / 2
-                      case UGenSpec.ArgumentValue.String(v)     => ugen.Escape.stringToGE(v)
+                      case UGenSpec.ArgumentValue.String(v)     => UGenSource.stringArg(v)
                     }
                   }
                   (inGE, classOf[GE])
@@ -348,13 +361,12 @@ object ChromosomeImpl {
             (implicit exec: ExecutionContext): Processor[Any] = {
     type S  = InMemory
     implicit val cursor = InMemory()  // XXX TODO - create that once
-    val exp = ExprImplicits[S]
-    import exp._
+//    val exp = ExprImplicits[S]
 
     val objH = cursor.step { implicit tx =>
       val proc      = Proc[S]
       proc.graph()  = mkSynthGraph(c, mono = true, removeNaNs = false) // c.graph
-    val procObj   = Obj(Proc.Elem(proc))
+    val procObj   = proc // Obj(Proc.Elem(proc))
       tx.newHandle(procObj)
     }
     import WorkspaceHandle.Implicits._
@@ -370,7 +382,7 @@ object ChromosomeImpl {
     sCfg.blockSize          = 64   // keep it compatible to real-time
     sCfg.sampleRate         = inputSpec.sampleRate.toInt
     // bc.init : (S#Tx, Server) => Unit
-    bncCfg.span             = Span(0L, (duration * Timeline.SampleRate).toLong)
+    bncCfg.span             = Span(0L, (duration * TimeRef.SampleRate).toLong)
     val bnc0                = Bounce[S, S].apply(bncCfg)
     bnc0.start()
     bnc0
@@ -501,12 +513,12 @@ object ChromosomeImpl {
       new Evaluated(c, sim)
     }
 
-    res.onComplete { case _ =>
+    res.onComplete { _ =>
       if (eval.normalize) normF.delete()
-      featF     .delete()
-      audioF    .delete()
-      genExtr   .delete()
-      genFolder .delete()
+      featF.delete()
+      audioF.delete()
+      genExtr.delete()
+      genFolder.delete()
     }
     res
   }

@@ -2,7 +2,7 @@
  *  MutagenApp.scala
  *  (Mutagen)
  *
- *  Copyright (c) 2014-2015 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2014-2016 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -13,23 +13,20 @@
 
 package de.sciss.mutagen
 
-import java.awt.Color
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 import javax.swing.JComponent
 
-import com.alee.laf.WebLookAndFeel
-import com.alee.laf.checkbox.WebCheckBoxStyle
-import com.alee.laf.progressbar.WebProgressBarStyle
 import de.sciss.audiowidgets.Transport
 import de.sciss.desktop.impl.WindowImpl
-import de.sciss.desktop.{KeyStrokes, OptionPane, DialogSource, FileDialog, Menu, Window, WindowHandler}
+import de.sciss.desktop.{DialogSource, FileDialog, KeyStrokes, Menu, OptionPane, Window, WindowHandler}
 import de.sciss.file._
 import de.sciss.lucre.swing.defer
 import de.sciss.muta.gui.{DocumentFrame, GeneticApp}
 import de.sciss.pdflitz
 import de.sciss.processor.Processor
+import de.sciss.submin.Submin
 import de.sciss.synth.impl.DefaultUGenGraphBuilderFactory
 import de.sciss.synth.swing.ServerStatusPanel
 import de.sciss.synth.{Server, ServerConnection, Synth, SynthDef}
@@ -80,14 +77,7 @@ object MutagenApp extends GeneticApp(MutagenSystem, "Mutagen") { app =>
 
   protected override def init(): Unit = {
     // println(MutagenSystem.chromosomeClassTag)
-    WebLookAndFeel.install()
-    // some custom web-laf settings
-    WebCheckBoxStyle   .animated            = false
-    WebProgressBarStyle.progressTopColor    = Color.lightGray
-    WebProgressBarStyle.progressBottomColor = Color.gray
-    // XXX TODO: how to really turn of animation?
-    WebProgressBarStyle.highlightWhite      = new Color(255, 255, 255, 0)
-    WebProgressBarStyle.highlightDarkWhite  = new Color(255, 255, 255, 0)
+    Submin.install(true)
 
     super.init()
 
